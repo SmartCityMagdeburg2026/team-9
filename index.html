@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Smart City Magdeburg · Echtzeit-Dashboard</title>
+<meta name="description" content="Echtzeit-Dashboard für Magdeburg: Umwelt, Mobilität, Energie & Stadtleben">
+<meta name="theme-color" content="#520F00">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --red:#E84E0C; --red-dark:#520F00; --red-light:#FF6B30; --red-pale:#FFF0EB;
+  --white:#FFFFFF; --bg:#FFF8F5; --surface:#FFFFFF; --surface2:#FFF3EE; --surface3:#FFE8DF;
+  --text:#1A0A06; --muted:#7A4030; --muted-light:#B07060;
+  --border:rgba(232,78,12,0.12); --border-strong:rgba(232,78,12,0.28);
+  --green:#15803d; --green-bg:#f0fdf4; --amber:#b45309; --amber-bg:#fffbeb;
+  --blue:#1d4ed8; --blue-bg:#eff6ff;
+  --shadow:0 2px 12px rgba(232,78,12,0.08); --shadow-md:0 4px 20px rgba(82,15,0,0.10);
+  --shadow-lg:0 8px 40px rgba(82,15,0,0.15);
+  --radius:16px; --radius-sm:10px; --header-h:60px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+h1,h2,h3{font-family:'Fraunces',serif;}
+.mono{font-family:'DM Mono',monospace;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kpiFlash{0%{background:rgba(232,78,12,0.15)}100%{background:transparent}}
+@keyframes riverFlow{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+@keyframes markerPop{0%{transform:scale(0);opacity:0}60%{transform:scale(1.3)}100%{transform:scale(1);opacity:1}}
+@keyframes tramBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes typingDot{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1.0);opacity:1}}
+@keyframes chatSlideUp{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+.anim-in{opacity:0;animation:fadeSlideIn 0.55s cubic-bezier(0.4,0,0.2,1) var(--delay,0s) forwards;}
+.kpi-updated{animation:kpiFlash 0.9s ease-out;}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:200;height:var(--header-h);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;background:var(--red-dark);box-shadow:0 2px 20px rgba(82,15,0,0.4);}
+.logo{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.logo-mark{width:36px;height:36px;background:var(--red);border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;border:2px solid rgba(255,255,255,0.2);letter-spacing:-0.5px;}
+.logo-text{font-family:'Fraunces',serif;font-weight:700;font-size:16px;color:#fff;letter-spacing:-0.01em;line-height:1.2;}
+.logo-sub{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:0.1em;}
+.header-nav{display:flex;gap:3px;background:rgba(0,0,0,0.2);padding:4px;border-radius:12px;}
+.nav-tab{padding:6px 15px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all 0.2s;color:rgba(255,255,255,0.55);background:transparent;letter-spacing:0.01em;}
+.nav-tab.active{background:var(--red);border-color:rgba(255,255,255,0.15);color:#fff;box-shadow:0 2px 8px rgba(232,78,12,0.4);}
+.nav-tab:hover:not(.active){color:#fff;background:rgba(255,255,255,0.08);}
+.header-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.live-pill{display:flex;align-items:center;gap:6px;background:rgba(21,128,61,0.25);border:1px solid rgba(21,128,61,0.45);padding:4px 10px;border-radius:20px;}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pulse 2s infinite;}
+.live-label{font-family:'DM Mono',monospace;font-size:10px;color:#4ade80;text-transform:uppercase;letter-spacing:0.1em;}
+.time-display{font-family:'DM Mono',monospace;font-size:12px;color:rgba(255,255,255,0.45);}
+.lang-toggle-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.85);font-family:'DM Mono',monospace;font-size:11px;font-weight:500;padding:5px 10px;border-radius:8px;cursor:pointer;transition:all 0.2s;letter-spacing:0.08em;}
+.lang-toggle-btn:hover{background:var(--red);border-color:var(--red);color:#fff;}
+.menu-toggle{display:none;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:16px;transition:background 0.2s;}
+.menu-toggle:hover{background:rgba(255,255,255,0.2);}
+.mobile-nav-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(82,15,0,0.7);backdrop-filter:blur(4px);}
+.mobile-nav-overlay.open{display:flex;justify-content:flex-end;}
+.mobile-nav{background:var(--red-dark);width:260px;padding:24px 16px;display:flex;flex-direction:column;gap:4px;animation:fadeSlideIn 0.25s ease;}
+.mobile-nav-close{align-self:flex-end;background:rgba(255,255,255,0.1);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;margin-bottom:12px;}
+.mobile-nav-item{padding:12px 16px;border-radius:10px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all 0.2s;color:rgba(255,255,255,0.7);background:transparent;text-align:left;}
+.mobile-nav-item.active{background:var(--red);border-color:rgba(255,255,255,0.15);color:#fff;}
+.mobile-nav-item:hover:not(.active){background:rgba(255,255,255,0.08);color:#fff;}
+
+/* LAYOUT */
+#app-main{min-height:calc(100vh - var(--header-h) - 56px);}
+.page{display:none;}
+.page.active{display:block;}
+.container{max-width:1380px;margin:0 auto;padding:1.5rem 1.75rem;}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:12px;}
+.page-title{font-size:2rem;font-weight:700;letter-spacing:-0.02em;color:var(--red-dark);}
+.page-sub{font-size:12px;color:var(--muted-light);margin-top:3px;}
+.status-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.status-chip{font-family:'DM Mono',monospace;font-size:10px;padding:4px 10px;border-radius:20px;letter-spacing:0.05em;}
+.chip-green{background:var(--green-bg);color:var(--green);border:1px solid rgba(21,128,61,0.25);}
+.chip-amber{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(180,83,9,0.25);}
+.chip-red{background:#fff1ee;color:var(--red);border:1px solid rgba(232,78,12,0.25);}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);transition:box-shadow 0.2s,border-color 0.2s;}
+.card:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:6px;}
+.card-title{font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;}
+
+/* BADGES */
+.badge{font-family:'DM Mono',monospace;font-size:10px;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500;}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid rgba(21,128,61,0.2);}
+.badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(180,83,9,0.2);}
+.badge-red{background:#fff1ee;color:var(--red);border:1px solid rgba(232,78,12,0.25);}
+.badge-blue{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(29,78,216,0.2);}
+
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius) var(--radius) 0 0;}
+.kpi-red::before{background:var(--red);}
+.kpi-green::before{background:var(--green);}
+.kpi-amber::before{background:#d97706;}
+.kpi-blue::before{background:var(--blue);}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.kpi-label{font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;}
+.kpi-value{font-family:'Fraunces',serif;font-size:2.5rem;font-weight:700;line-height:1;letter-spacing:-0.02em;color:var(--text);margin-bottom:5px;}
+.kpi-sub{font-size:11px;color:var(--muted-light);}
+.kpi-spark{height:32px;margin-top:10px;position:relative;}
+
+/* RIVER BAR */
+.river-bar-wrap{margin-top:12px;height:8px;background:var(--surface3);border-radius:4px;overflow:visible;position:relative;}
+.river-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#60a5fa,#3b82f6,#1d4ed8);background-size:200% 100%;animation:riverFlow 3s linear infinite;position:relative;transition:width 1.5s cubic-bezier(0.4,0,0.2,1);min-width:16px;}
+.river-bar-fill::after{content:'';position:absolute;top:-4px;right:-1px;width:16px;height:16px;border-radius:50%;background:#3b82f6;border:2px solid var(--bg);box-shadow:0 0 8px rgba(59,130,246,0.6);}
+.river-thresholds{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted-light);margin-top:8px;}
+
+/* TWO COL */
+.two-col-layout{display:grid;grid-template-columns:1fr 500px;gap:1rem;margin-bottom:1.25rem;}
+.right-col{display:flex;flex-direction:column;gap:1rem;}
+
+/* MAP — FIX: reduced height to 240px */
+.map-card{display:flex;flex-direction:column;}
+#city-map{height:160px;border-radius:var(--radius-sm);overflow:hidden;flex:1;margin-bottom:10px;}
+.map-filters{display:flex;gap:6px;flex-wrap:wrap;}
+.map-filter{padding:4px 10px;border-radius:20px;border:1px solid var(--border-strong);background:var(--surface2);color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.map-filter.active{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 2px 8px rgba(232,78,12,0.35);}
+.map-filter:hover:not(.active){background:var(--surface3);color:var(--text);}
+.map-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.legend-dot{width:8px;height:8px;border-radius:50%;}
+.dot-green{background:var(--green);box-shadow:0 0 6px rgba(21,128,61,0.5);}
+.dot-amber{background:#d97706;box-shadow:0 0 6px rgba(180,83,9,0.5);}
+.dot-red{background:var(--red);box-shadow:0 0 6px rgba(232,78,12,0.5);}
+.map-sensor-count{margin-left:auto;font-size:10px;color:var(--muted-light);}
+
+/* Leaflet overrides */
+.leaflet-container{font-family:'DM Mono',monospace;}
+.leaflet-popup-content-wrapper{background:var(--red-dark);border:1px solid var(--red);border-radius:10px;box-shadow:0 4px 20px rgba(232,78,12,0.4);color:#fff;}
+.leaflet-popup-tip{background:var(--red-dark);}
+.leaflet-popup-content{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.9);margin:10px 14px;}
+.leaflet-popup-content b{color:var(--red-light);font-family:'Outfit',sans-serif;font-size:13px;display:block;margin-bottom:4px;}
+.leaflet-popup-content .pop-detail{color:rgba(255,255,255,0.65);font-size:10px;}
+.leaflet-control-zoom a{background:var(--red-dark)!important;color:#fff!important;border-color:var(--red)!important;}
+.leaflet-control-zoom a:hover{background:var(--red)!important;}
+.leaflet-control-attribution{background:rgba(26,10,6,0.7)!important;color:rgba(255,255,255,0.3)!important;font-size:9px!important;}
+
+/* MAP MARKERS */
+.poi-marker{width:32px;height:32px;background:rgba(255,248,245,0.97);border:2px solid rgba(232,78,12,0.5);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 3px 10px rgba(82,15,0,0.3);cursor:pointer;animation:markerPop 0.35s ease forwards;transition:transform 0.2s,box-shadow 0.2s;}
+.poi-marker:hover{transform:scale(1.35);box-shadow:0 5px 18px rgba(232,78,12,0.45);}
+.transit-stop-marker{width:30px;height:30px;background:rgba(255,248,245,0.97);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 3px 10px rgba(82,15,0,0.3);cursor:pointer;animation:markerPop 0.35s ease forwards;transition:transform 0.2s;}
+.transit-stop-marker:hover{transform:scale(1.3);}
+.tram-stop{border:2px solid #d97706;}
+.bus-stop{border:2px solid #3b82f6;}
+.tram-anim-marker{width:28px;height:28px;background:rgba(217,119,6,0.15);border:2px solid #d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;animation:tramBounce 2s ease-in-out infinite;cursor:pointer;}
+.bus-anim-marker{width:28px;height:28px;background:rgba(59,130,246,0.12);border:2px solid #3b82f6;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;animation:tramBounce 2.5s ease-in-out infinite;cursor:pointer;}
+.user-marker{width:18px;height:18px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3),0 2px 8px rgba(0,0,0,0.3);animation:pulse 2s infinite;}
+
+/* ALERTS */
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:8px;font-size:12px;line-height:1.5;}
+.alert:last-child{margin-bottom:0;}
+.alert-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
+.alert-title{font-weight:600;color:var(--text);margin-bottom:1px;}
+.alert-body{color:var(--muted-light);}
+.alert-green{background:var(--green-bg);border:1px solid rgba(21,128,61,0.2);}
+.alert-amber{background:var(--amber-bg);border:1px solid rgba(180,83,9,0.2);}
+.alert-red{background:#fff1ee;border:1px solid rgba(232,78,12,0.25);}
+
+/* PARKING */
+.parking-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.parking-slot{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center;}
+.parking-name{font-size:10px;color:var(--muted-light);margin-bottom:4px;font-family:'DM Mono',monospace;}
+.parking-free{font-family:'Fraunces',serif;font-size:1.8rem;font-weight:700;color:var(--text);line-height:1;}
+.parking-label{font-size:10px;color:var(--muted-light);margin-top:2px;}
+
+/* TRANSIT BARS */
+.transit-bar-item{margin-bottom:10px;}
+.transit-bar-label{display:flex;justify-content:space-between;font-size:12px;font-weight:500;margin-bottom:4px;}
+.transit-bar-pct{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.transit-bar-track{height:7px;background:var(--surface3);border-radius:4px;overflow:hidden;}
+.transit-bar-fill{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(0.4,0,0.2,1),background 0.4s;}
+
+/* PARKING TABLE */
+.parking-table{display:flex;flex-direction:column;gap:6px;}
+.pt-row{display:grid;grid-template-columns:1fr 50px 50px 64px;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;}
+.pt-header{background:transparent;font-size:10px;color:var(--muted-light);padding:4px 10px;text-transform:uppercase;letter-spacing:0.06em;}
+
+/* RIVER INFO */
+.river-info{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;}
+.river-stat{text-align:center;flex:1;}
+.rs-val{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:700;color:var(--text);}
+.rs-lbl{font-size:10px;color:var(--muted-light);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;}
+
+/* AQI BREAKDOWN */
+.aqi-item{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.aqi-item-label{font-size:12px;font-weight:500;flex:1;}
+.aqi-track{flex:2;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;}
+.aqi-fill{height:100%;border-radius:3px;transition:width 1.2s ease;}
+.aqi-val{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);min-width:36px;text-align:right;}
+
+/* WIND COMPASS */
+.wind-display{display:flex;align-items:center;gap:20px;}
+.wind-compass{width:80px;height:80px;border-radius:50%;background:var(--surface2);border:2px solid var(--border-strong);position:relative;flex-shrink:0;}
+.compass-needle{position:absolute;top:50%;left:50%;width:3px;height:32px;background:linear-gradient(to bottom,var(--red) 50%,rgba(255,255,255,0.3) 50%);transform-origin:bottom center;transform:translate(-50%,-100%) rotate(0deg);border-radius:2px;transition:transform 1.5s cubic-bezier(0.4,0,0.2,1);}
+.compass-n,.compass-s,.compass-e,.compass-w{position:absolute;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);font-weight:500;}
+.compass-n{top:4px;left:50%;transform:translateX(-50%);}
+.compass-s{bottom:4px;left:50%;transform:translateX(-50%);}
+.compass-e{right:5px;top:50%;transform:translateY(-50%);}
+.compass-w{left:5px;top:50%;transform:translateY(-50%);}
+.wind-stats{display:flex;flex-direction:column;gap:8px;}
+.ws-item{display:flex;align-items:baseline;gap:6px;}
+.ws-val{font-family:'Fraunces',serif;font-size:1.4rem;font-weight:700;color:var(--text);}
+.ws-lbl{font-size:10px;color:var(--muted-light);}
+
+/* FACTS STRIP */
+.facts-strip{background:linear-gradient(135deg,var(--red-dark) 0%,var(--red) 100%);border-radius:var(--radius);display:flex;height:120px;overflow:hidden;position:relative;box-shadow:0 4px 24px rgba(82,15,0,0.2);}
+.facts-sidebar{width:110px;flex-shrink:0;background:rgba(0,0,0,0.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;border-right:1px solid rgba(255,255,255,0.1);}
+.facts-icon{font-size:26px;}
+.facts-sidebar-label{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.1em;text-align:center;}
+.facts-content{flex:1;position:relative;overflow:hidden;}
+.fact-slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;opacity:0;transform:translateX(30px);transition:all 0.5s cubic-bezier(0.4,0,0.2,1);pointer-events:none;}
+.fact-slide.active{opacity:1;transform:translateX(0);pointer-events:auto;}
+.fact-slide.exiting{opacity:0;transform:translateX(-30px);}
+.fact-emoji{font-size:18px;margin-bottom:5px;}
+.fact-text{font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;color:#fff;line-height:1.4;margin-bottom:4px;}
+.fact-detail{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.6);line-height:1.5;}
+.facts-dots{position:absolute;bottom:10px;right:14px;display:flex;gap:5px;align-items:center;}
+.fact-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.3);transition:all 0.3s;cursor:pointer;}
+.fact-dot.active{background:#fff;width:14px;border-radius:3px;}
+
+/* CITY PAGE */
+.city-hero{background:linear-gradient(135deg,var(--red-dark) 0%,var(--red) 100%);border-radius:var(--radius);padding:2rem;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:1.25rem;box-shadow:0 4px 24px rgba(82,15,0,0.2);}
+.city-hero-title{font-family:'Fraunces',serif;font-size:1.8rem;font-weight:700;color:#fff;margin-bottom:8px;}
+.city-hero-body{font-size:13px;color:rgba(255,255,255,0.75);max-width:560px;line-height:1.7;}
+.city-hero-stats{display:flex;gap:24px;flex-shrink:0;flex-wrap:wrap;}
+.city-stat{text-align:center;}
+.city-stat-val{font-family:'Fraunces',serif;font-size:2rem;font-weight:700;color:#fff;}
+.city-stat-lbl{font-size:10px;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.08em;}
+.highlights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem;}
+.highlight-card{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;display:flex;flex-direction:column;gap:8px;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;}
+.highlight-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);}
+.hl-icon{font-size:32px;}
+.hl-title{font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--red-dark);}
+.hl-body{font-size:12px;color:var(--muted);line-height:1.6;flex:1;}
+.hl-tag{display:inline-flex;align-items:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--red);background:#fff1ee;border:1px solid rgba(232,78,12,0.2);padding:3px 9px;border-radius:20px;margin-top:auto;}
+.hl-read-more{font-family:'DM Mono',monospace;font-size:10px;color:var(--red);background:transparent;border:1px solid rgba(232,78,12,0.3);padding:5px 12px;border-radius:20px;cursor:pointer;transition:all 0.2s;margin-top:6px;align-self:flex-start;}
+.hl-read-more:hover{background:var(--red);color:#fff;}
+
+/* ARTICLE MODAL */
+.article-modal-overlay{display:none;position:fixed;inset:0;z-index:2000;background:rgba(82,15,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;}
+.article-modal-overlay.open{display:flex;}
+.article-modal{background:var(--surface);border-radius:20px;max-width:640px;width:calc(100vw - 40px);max-height:85vh;overflow-y:auto;padding:0;box-shadow:var(--shadow-lg);animation:fadeSlideUp 0.3s ease;}
+.am-header{background:linear-gradient(135deg,var(--red-dark),var(--red));padding:24px 28px;border-radius:20px 20px 0 0;}
+.am-icon{font-size:40px;margin-bottom:10px;}
+.am-title{font-family:'Fraunces',serif;font-size:1.6rem;font-weight:700;color:#fff;margin-bottom:6px;}
+.am-tag{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.6);background:rgba(0,0,0,0.2);padding:3px 10px;border-radius:20px;display:inline-block;}
+.am-body{padding:24px 28px;}
+.am-body p{font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:14px;}
+.am-body p:last-child{margin-bottom:0;}
+.am-body h3{font-family:'Fraunces',serif;font-size:1rem;color:var(--red-dark);margin:16px 0 8px;}
+.am-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.am-close:hover{background:rgba(255,255,255,0.3);}
+
+/* CARBON GAUGE */
+.carbon-gauge-wrap{display:flex;align-items:center;gap:20px;padding:8px 0;}
+.carbon-info{flex:1;}
+.ci-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);}
+.ci-row:last-child{border-bottom:none;}
+.ci-label{font-size:12px;color:var(--muted);}
+.ci-val{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);font-weight:500;}
+
+/* FOOTER */
+footer{background:var(--red-dark);padding:14px 1.75rem;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.footer-center,.footer-right{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.4);}
+.footer-center{text-align:center;flex:1;}
+.footer-right{text-align:right;}
+
+/* CHATBOT */
+#chatbot-widget{position:fixed;bottom:24px;right:24px;z-index:1000;}
+#chat-fab{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,var(--red-dark),var(--red));border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(82,15,0,0.4);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;}
+#chat-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(82,15,0,0.5);}
+.chat-fab-badge{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:#ef4444;color:#fff;border:2px solid var(--bg);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;}
+.chat-panel{position:absolute;bottom:70px;right:0;width:360px;height:520px;background:var(--surface);border:1px solid var(--border-strong);border-radius:20px;box-shadow:var(--shadow-lg);display:none;flex-direction:column;overflow:hidden;transform-origin:bottom right;}
+.chat-panel.open{display:flex;animation:chatSlideUp 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards;}
+.chat-header{background:linear-gradient(135deg,var(--red-dark),var(--red));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.chat-header-left{display:flex;align-items:center;gap:10px;}
+.chat-avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:#fff;}
+.chat-title{font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;color:#fff;}
+.chat-status{display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.7);margin-top:2px;}
+.chat-close-btn{background:rgba(255,255,255,0.15);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;transition:background 0.2s;}
+.chat-close-btn:hover{background:rgba(255,255,255,0.25);}
+.chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;}
+.chat-messages::-webkit-scrollbar{width:4px;}
+.chat-messages::-webkit-scrollbar-track{background:transparent;}
+.chat-messages::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px;}
+.chat-msg{display:flex;max-width:88%;}
+.chat-msg.user{align-self:flex-end;justify-content:flex-end;}
+.chat-msg.bot{align-self:flex-start;}
+.chat-bubble{padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.55;animation:fadeSlideUp 0.25s ease;}
+.chat-msg.user .chat-bubble{background:var(--red);color:#fff;border-bottom-right-radius:4px;}
+.chat-msg.bot .chat-bubble{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px;}
+.chat-typing{display:flex;align-items:center;gap:4px;padding:12px 14px;}
+.chat-typing span{width:7px;height:7px;border-radius:50%;background:var(--muted-light);animation:typingDot 1.2s infinite;}
+.chat-typing span:nth-child(2){animation-delay:0.2s;}
+.chat-typing span:nth-child(3){animation-delay:0.4s;}
+.chat-quick-btns{padding:0 12px 10px;display:flex;flex-wrap:wrap;gap:6px;}
+.chat-quick-btn{padding:5px 10px;border-radius:20px;background:var(--red-pale);border:1px solid rgba(232,78,12,0.2);color:var(--red);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.chat-quick-btn:hover{background:var(--red);color:#fff;}
+.chat-input-row{padding:10px 12px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--border);flex-shrink:0;}
+#chat-input{flex:1;background:var(--surface2);border:1px solid var(--border-strong);border-radius:12px;padding:9px 14px;font-family:'Outfit',sans-serif;font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s;}
+#chat-input:focus{border-color:var(--red);}
+#chat-send{width:36px;height:36px;border-radius:10px;background:var(--red);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+#chat-send:hover{background:var(--red-dark);transform:scale(1.05);}
+
+/* RESPONSIVE */
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(2,1fr);}.two-col-layout{grid-template-columns:1fr;}.right-col{flex-direction:row;flex-wrap:wrap;}.right-col>.card{flex:1;min-width:260px;}.highlights-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:768px){.header-nav{display:none;}.menu-toggle{display:block;}.time-display{display:none;}.container{padding:1rem;}.kpi-row{grid-template-columns:repeat(2,1fr);gap:0.75rem;}.kpi-value{font-size:2rem;}#city-map{height:200px;}.highlights-grid{grid-template-columns:1fr;}.city-hero{flex-direction:column;}.page-title{font-size:1.5rem;}.facts-sidebar{display:none;}footer{flex-direction:column;align-items:flex-start;gap:8px;}.footer-center,.footer-right{text-align:left;}.chat-panel{width:calc(100vw - 32px);right:-8px;}}
+@media(max-width:480px){:root{--header-h:56px;}header{padding:0 1rem;}.logo-text{font-size:14px;}.kpi-row{grid-template-columns:1fr 1fr;gap:0.5rem;}.parking-grid{grid-template-columns:1fr 1fr;}.right-col{flex-direction:column;}.right-col>.card{min-width:unset;}#chatbot-widget{bottom:16px;right:16px;}.chat-panel{bottom:75px;}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header id="app-header">
+  <div class="logo">
+    <div class="logo-mark">MD</div>
+    <div>
+      <div class="logo-text">Smart City Magdeburg</div>
+      <div class="logo-sub">Echtzeit-Dashboard 2026</div>
+    </div>
+  </div>
+  <nav class="header-nav" id="main-nav">
+    <button class="nav-tab active" data-page="overview" data-i18n="nav_overview">Übersicht</button>
+    <button class="nav-tab" data-page="mobility" data-i18n="nav_mobility">Mobilität</button>
+    <button class="nav-tab" data-page="environment" data-i18n="nav_environment">Umwelt</button>
+    <button class="nav-tab" data-page="energy" data-i18n="nav_energy">Energie</button>
+    <button class="nav-tab" data-page="city" data-i18n="nav_city">Die Stadt</button>
+  </nav>
+  <div class="header-right">
+    <div class="live-pill"><span class="live-dot"></span><span class="live-label">LIVE</span></div>
+    <div class="time-display" id="clock">--:--:--</div>
+    <button id="lang-toggle" class="lang-toggle-btn" title="Switch Language">EN</button>
+    <button class="menu-toggle" id="menu-toggle" aria-label="Menu">☰</button>
+  </div>
+</header>
+
+<!-- Mobile nav -->
+<div class="mobile-nav-overlay" id="mobile-nav-overlay">
+  <div class="mobile-nav">
+    <button class="mobile-nav-close" id="mobile-nav-close">✕</button>
+    <button class="mobile-nav-item active" data-page="overview">🏙️ Übersicht</button>
+    <button class="mobile-nav-item" data-page="mobility">🚌 Mobilität</button>
+    <button class="mobile-nav-item" data-page="environment">🌿 Umwelt</button>
+    <button class="mobile-nav-item" data-page="energy">⚡ Energie</button>
+    <button class="mobile-nav-item" data-page="city">🏛️ Die Stadt</button>
+  </div>
+</div>
+
+<!-- Article Modal -->
+<div class="article-modal-overlay" id="article-modal-overlay">
+  <div class="article-modal" style="position:relative;">
+    <div class="am-header">
+      <div class="am-icon" id="am-icon"></div>
+      <div class="am-title" id="am-title"></div>
+      <div class="am-tag" id="am-tag"></div>
+    </div>
+    <div class="am-body" id="am-body"></div>
+    <button class="am-close" id="am-close">✕</button>
+  </div>
+</div>
+
+<main id="app-main">
+
+<!-- ===================== OVERVIEW PAGE ===================== -->
+<section class="page active" id="page-overview">
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title" data-i18n="overview_title">Stadtüberblick</h1>
+        <p class="page-sub mono" id="last-update">Aktualisierung läuft…</p>
+      </div>
+      <div class="status-chips">
+        <span class="status-chip chip-green">✓ Alle Systeme normal</span>
+        <span class="status-chip chip-amber">⚠ 1 Baustelle aktiv</span>
+      </div>
+    </div>
+
+    <!-- KPI row -->
+    <div class="kpi-row">
+      <div class="kpi-card kpi-red anim-in" style="--delay:0.05s">
+        <div class="kpi-top"><span class="kpi-label" data-i18n="kpi_aqi">Luftqualität AQI</span><span class="badge badge-green" id="aqi-badge">Gut</span></div>
+        <div class="kpi-value" id="kpi-aqi">42</div>
+        <div class="kpi-sub mono">PM2.5 · <span id="kpi-pm25">12</span> µg/m³</div>
+        <div class="kpi-spark" id="spark-aqi"></div>
+      </div>
+      <!-- FIX 2: Elbe shows cm directly, placeholder is "-- cm" -->
+      <div class="kpi-card kpi-blue anim-in" style="--delay:0.1s">
+        <div class="kpi-top"><span class="kpi-label" data-i18n="kpi_elbe">Elbe-Pegel</span><span class="badge badge-green" id="elbe-badge">Normal</span></div>
+        <div class="kpi-value" id="kpi-elbe" style="font-size:2rem">-- cm</div>
+        <div class="kpi-sub mono">Strombrücke · Pegel Magdeburg</div>
+        <div class="river-bar-wrap"><div class="river-bar-fill" id="river-fill" style="width:30%"></div></div>
+        <div class="river-thresholds"><span>0</span><span>200</span><span>400</span><span>↑ Warn: 590</span></div>
+      </div>
+      <div class="kpi-card kpi-amber anim-in" style="--delay:0.15s">
+        <div class="kpi-top"><span class="kpi-label" data-i18n="kpi_traffic">Verkehr</span><span class="badge badge-amber" id="traffic-badge">Mittel</span></div>
+        <div class="kpi-value" id="kpi-traffic">58<span style="font-size:1rem">%</span></div>
+        <div class="kpi-sub mono">% Auslastung · Innenstadt</div>
+        <div class="kpi-spark" id="spark-traffic"></div>
+      </div>
+      <div class="kpi-card kpi-green anim-in" style="--delay:0.2s">
+        <div class="kpi-top"><span class="kpi-label" data-i18n="kpi_temp">Temperatur</span><span class="badge badge-blue">Aktuell</span></div>
+        <div class="kpi-value" id="kpi-temp">--°</div>
+        <div class="kpi-sub mono" id="kpi-weather-desc">Lade…</div>
+        <div class="kpi-sub mono" style="margin-top:4px">Feuchtigkeit: <span id="kpi-humidity">--%</span></div>
+      </div>
+    </div>
+
+    <!-- Map + Alerts -->
+    <div class="two-col-layout">
+      <div class="card map-card anim-in" style="--delay:0.25s">
+        <div class="card-header">
+          <span class="card-title">Stadtkarte · Magdeburg</span>
+          <div class="map-filters">
+            <button class="map-filter active" data-layer="all">Alle</button>
+            <button class="map-filter" data-layer="restaurants">🍽 Restaurants</button>
+            <button class="map-filter" data-layer="cafes">☕ Cafés</button>
+            <button class="map-filter" data-layer="bars">🍺 Bars</button>
+            <button class="map-filter" data-layer="sights">⭐ Sights</button>
+            <button class="map-filter" data-layer="trams">🚋 Trams</button>
+            <button class="map-filter" data-layer="buses">🚌 Busse</button>
+          </div>
+        </div>
+        <div id="city-map"></div>
+        <div class="map-legend">
+          <div class="legend-item"><span style="font-size:14px">🍽</span><span>Restaurant</span></div>
+          <div class="legend-item"><span style="font-size:14px">☕</span><span>Café</span></div>
+          <div class="legend-item"><span style="font-size:14px">🍺</span><span>Bar</span></div>
+          <div class="legend-item"><span style="font-size:14px">⭐</span><span>Sehenswürdigkeit</span></div>
+          <div class="legend-item"><span style="font-size:14px">🚋</span><span>Tram Live</span></div>
+          <div class="legend-item"><span style="font-size:14px">🚌</span><span>Bus Live</span></div>
+          <div class="map-sensor-count mono">37 Sensoren aktiv</div>
+        </div>
+      </div>
+
+      <div class="right-col">
+        <div class="card anim-in" style="--delay:0.3s">
+          <div class="card-header"><span class="card-title">Aktive Meldungen</span><span class="badge badge-red">1 Alarm</span></div>
+          <div class="alert alert-red"><span class="alert-icon">🚧</span><div><div class="alert-title">Wasserrohrbruch · Breiter Weg</div><div class="alert-body">Sperrung aktiv · Einsatz vor Ort · Est. 3h</div></div></div>
+          <div class="alert alert-amber"><span class="alert-icon">🚗</span><div><div class="alert-title">Stau A2 Ausfahrt West</div><div class="alert-body">+18 Min Reisezeitverlust · B1 empfohlen</div></div></div>
+          <div class="alert alert-green"><span class="alert-icon">🌱</span><div><div class="alert-title">Luftqualität verbessert</div><div class="alert-body">PM2.5 unter WHO-Grenzwert · Gut für Outdoor</div></div></div>
+        </div>
+
+        <div class="card anim-in" style="--delay:0.35s">
+          <div class="card-header"><span class="card-title">Parkleitsystem</span></div>
+          <div class="parking-grid">
+            <div class="parking-slot"><div class="parking-name">HBF-Garage</div><div class="parking-free" id="park-hbf">312</div><div class="parking-label">frei / 500</div></div>
+            <div class="parking-slot"><div class="parking-name">Alter Markt</div><div class="parking-free" id="park-alter">88</div><div class="parking-label">frei / 200</div></div>
+            <div class="parking-slot"><div class="parking-name">Allee-Center</div><div class="parking-free" id="park-allee">207</div><div class="parking-label">frei / 300</div></div>
+            <div class="parking-slot"><div class="parking-name">Breiter Weg</div><div class="parking-free" id="park-breiter">14</div><div class="parking-label">frei / 50</div></div>
+          </div>
+        </div>
+
+        <div class="card anim-in" style="--delay:0.4s">
+          <div class="card-header"><span class="card-title">ÖPNV-Auslastung</span><span class="mono" style="font-size:10px;color:var(--muted-light)">MVB Echtzeit</span></div>
+          <div id="transit-bars"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overview charts row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+      <div class="card anim-in" style="--delay:0.45s">
+        <div class="card-header"><span class="card-title">Verkehrslast · Heute</span></div>
+        <div style="position:relative;height:160px"><canvas id="trafficMiniChart"></canvas></div>
+      </div>
+      <div class="card anim-in" style="--delay:0.5s">
+        <div class="card-header"><span class="card-title">CO₂-Fußabdruck · Heute</span><span class="badge badge-amber" id="co2-badge-overview">Mittel</span></div>
+        <div class="carbon-gauge-wrap" style="padding:16px 0 0;">
+          <div>
+            <div style="font-family:'Fraunces',serif;font-size:2.2rem;font-weight:700;color:var(--text);line-height:1"><span id="co2-overview-val">189</span> <span style="font-size:1rem">g/kWh</span></div>
+            <div class="kpi-sub mono" style="margin-top:4px">Netz-Emissionsintensität</div>
+          </div>
+          <div style="flex:1;margin-left:20px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted-light);margin-bottom:4px;"><span>Niedrig</span><span>DE Schnitt 400</span><span>Hoch</span></div>
+            <div style="height:10px;background:linear-gradient(to right,#15803d,#d97706,#ef4444);border-radius:5px;position:relative;">
+              <div id="co2-marker" style="position:absolute;top:-3px;width:16px;height:16px;background:#fff;border:3px solid var(--red);border-radius:50%;transform:translateX(-50%);transition:left 1s;left:47%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Facts -->
+    <div class="facts-strip anim-in" style="--delay:0.55s">
+      <div class="facts-sidebar"><div class="facts-icon">💡</div><div class="facts-sidebar-label">Wusstest du?</div></div>
+      <div class="facts-content" id="facts-content"></div>
+      <div class="facts-dots" id="facts-dots"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MOBILITY PAGE ===================== -->
+<section class="page" id="page-mobility">
+  <div class="container">
+    <div class="page-header">
+      <div><h1 class="page-title">Mobilität</h1><p class="page-sub mono">ÖPNV · Verkehr · Sharing · Parken</p></div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card kpi-red anim-in" style="--delay:0.05s">
+        <div class="kpi-top"><span class="kpi-label">Aktive Fahrräder</span><span class="badge badge-blue">Sharing</span></div>
+        <div class="kpi-value" id="mob-bikes">178</div>
+        <div class="kpi-sub mono">MD-Rad · verfügbar</div>
+      </div>
+      <div class="kpi-card kpi-amber anim-in" style="--delay:0.1s">
+        <div class="kpi-top"><span class="kpi-label">E-Scooter</span><span class="badge badge-green">Aktiv</span></div>
+        <div class="kpi-value" id="mob-scooters">293</div>
+        <div class="kpi-sub mono">Citygebiet · verfügbar</div>
+      </div>
+      <div class="kpi-card kpi-green anim-in" style="--delay:0.15s">
+        <div class="kpi-top"><span class="kpi-label">Staus aktiv</span><span class="badge badge-amber">Mäßig</span></div>
+        <div class="kpi-value" id="mob-jams">4</div>
+        <div class="kpi-sub mono">Innenstadtbereich</div>
+      </div>
+      <div class="kpi-card kpi-blue anim-in" style="--delay:0.2s">
+        <div class="kpi-top"><span class="kpi-label">E-Ladestationen</span><span class="badge badge-green">OK</span></div>
+        <div class="kpi-value">42<span style="font-size:1rem">/48</span></div>
+        <div class="kpi-sub mono">aktiv · 87.5%</div>
+      </div>
+    </div>
+    <div class="two-col-layout">
+      <div class="card anim-in" style="--delay:0.25s">
+        <div class="card-header"><span class="card-title">ÖPNV Linienauslastung · Echtzeit</span><span class="mono" style="font-size:10px;color:var(--muted-light)">MVB · alle 30s</span></div>
+        <div id="transit-bars-full"></div>
+      </div>
+      <div class="right-col">
+        <div class="card anim-in" style="--delay:0.3s">
+          <div class="card-header"><span class="card-title">Verkehrsfluss · 24h</span></div>
+          <div style="position:relative;height:200px"><canvas id="trafficChart"></canvas></div>
+        </div>
+        <div class="card anim-in" style="--delay:0.35s">
+          <div class="card-header"><span class="card-title">Parkleitsystem · Alle</span></div>
+          <div class="parking-table">
+            <div class="pt-row pt-header mono"><span>Parkhaus</span><span>Frei</span><span>Total</span><span>Status</span></div>
+            <div class="pt-row"><span>HBF-Garage</span><span id="pt-hbf">312</span><span>500</span><span class="badge badge-green">OK</span></div>
+            <div class="pt-row"><span>Alter Markt</span><span id="pt-alter">88</span><span>200</span><span class="badge badge-green">OK</span></div>
+            <div class="pt-row"><span>Allee-Center</span><span id="pt-allee">207</span><span>300</span><span class="badge badge-green">OK</span></div>
+            <div class="pt-row"><span>Breiter Weg</span><span id="pt-breiter">14</span><span>50</span><span class="badge badge-red">Voll</span></div>
+            <div class="pt-row"><span>Domplatz</span><span>63</span><span>120</span><span class="badge badge-amber">Mittel</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ENVIRONMENT PAGE ===================== -->
+<section class="page" id="page-environment">
+  <div class="container">
+    <div class="page-header">
+      <div><h1 class="page-title">Umwelt & Klima</h1><p class="page-sub mono">Luft · Wasser · Lärm · Temperaturen</p></div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card kpi-green anim-in" style="--delay:0.05s">
+        <div class="kpi-top"><span class="kpi-label">Temperatur</span><span class="badge badge-blue">DWD</span></div>
+        <div class="kpi-value" id="env-temp">--°</div>
+        <div class="kpi-sub mono">Lufttemperatur · Magdeburg</div>
+      </div>
+      <div class="kpi-card kpi-blue anim-in" style="--delay:0.1s">
+        <div class="kpi-top"><span class="kpi-label">Luftfeuchtigkeit</span></div>
+        <div class="kpi-value" id="env-humidity">--%</div>
+        <div class="kpi-sub mono">rel. Luftfeuchtigkeit</div>
+      </div>
+      <div class="kpi-card kpi-red anim-in" style="--delay:0.15s">
+        <div class="kpi-top"><span class="kpi-label">Luftqualität AQI</span><span class="badge badge-green" id="env-aqi-badge">Gut</span></div>
+        <div class="kpi-value" id="env-aqi">--</div>
+        <div class="kpi-sub mono">Europäischer AQI</div>
+      </div>
+      <div class="kpi-card kpi-amber anim-in" style="--delay:0.2s">
+        <div class="kpi-top"><span class="kpi-label">Lärmpegel</span></div>
+        <div class="kpi-value" id="env-noise">58</div>
+        <div class="kpi-sub mono">dB · Innenstadt ∅</div>
+      </div>
+    </div>
+    <div class="two-col-layout">
+      <div class="card anim-in" style="--delay:0.25s">
+        <div class="card-header"><span class="card-title">Elbe-Pegel · Verlauf 30 Tage</span><span class="badge badge-green" id="elbe-chart-badge">Normal</span></div>
+        <div style="position:relative;height:240px"><canvas id="elbeChart"></canvas></div>
+        <div class="river-info">
+          <div class="river-stat"><div class="rs-val" id="elbe-live-val">--</div><div class="rs-lbl mono">Aktuell (cm)</div></div>
+          <div class="river-stat"><div class="rs-val">590</div><div class="rs-lbl mono">Warnstufe 1</div></div>
+          <div class="river-stat"><div class="rs-val">690</div><div class="rs-lbl mono">Warnstufe 2</div></div>
+          <div class="river-stat"><div class="rs-val">790</div><div class="rs-lbl mono">Warnstufe 3</div></div>
+        </div>
+      </div>
+      <div class="right-col">
+        <div class="card anim-in" style="--delay:0.3s">
+          <div class="card-header"><span class="card-title">Luftqualitäts-Komponenten</span><span class="mono" style="font-size:10px;color:var(--muted-light)">Open-Meteo AQI</span></div>
+          <div id="aqi-breakdown"></div>
+        </div>
+        <div class="card anim-in" style="--delay:0.35s">
+          <div class="card-header"><span class="card-title">Temperatur · 7-Tage-Trend</span></div>
+          <div style="position:relative;height:160px"><canvas id="tempChart"></canvas></div>
+        </div>
+        <div class="card anim-in" style="--delay:0.4s">
+          <div class="card-header"><span class="card-title">Windgeschwindigkeit</span></div>
+          <div class="wind-display">
+            <div class="wind-compass" id="wind-compass">
+              <div class="compass-needle" id="compass-needle"></div>
+              <span class="compass-n">N</span><span class="compass-s">S</span>
+              <span class="compass-e">E</span><span class="compass-w">W</span>
+            </div>
+            <div class="wind-stats">
+              <div class="ws-item"><span class="ws-val" id="wind-speed">--</span><span class="ws-lbl mono">km/h</span></div>
+              <div class="ws-item"><span class="ws-val" id="wind-gusts">--</span><span class="ws-lbl mono">Böen km/h</span></div>
+              <div class="ws-item"><span class="ws-val" id="wind-dir-label">--</span><span class="ws-lbl mono">Richtung</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ENERGY PAGE ===================== -->
+<section class="page" id="page-energy">
+  <div class="container">
+    <div class="page-header">
+      <div><h1 class="page-title">Energie</h1><p class="page-sub mono">Erzeugung · Verbrauch · Netz · Erneuerbare</p></div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card kpi-amber anim-in" style="--delay:0.05s">
+        <div class="kpi-top"><span class="kpi-label">Stromverbrauch</span><span class="badge badge-amber">Jetzt</span></div>
+        <div class="kpi-value"><span id="en-consumption">312</span> <span style="font-size:1rem">MW</span></div>
+        <div class="kpi-sub mono">Stadtweiter Bedarf</div>
+      </div>
+      <div class="kpi-card kpi-green anim-in" style="--delay:0.1s">
+        <div class="kpi-top"><span class="kpi-label">Solarertrag</span><span class="badge badge-green">Aktiv</span></div>
+        <div class="kpi-value"><span id="en-solar">47</span> <span style="font-size:1rem">MW</span></div>
+        <div class="kpi-sub mono">Stadtwerke Solarpark</div>
+      </div>
+      <div class="kpi-card kpi-blue anim-in" style="--delay:0.15s">
+        <div class="kpi-top"><span class="kpi-label">Windenergie</span><span class="badge badge-green">Aktiv</span></div>
+        <div class="kpi-value"><span id="en-wind">118</span> <span style="font-size:1rem">MW</span></div>
+        <div class="kpi-sub mono">Windpark Magdeburg</div>
+      </div>
+      <div class="kpi-card kpi-red anim-in" style="--delay:0.2s">
+        <div class="kpi-top"><span class="kpi-label">CO₂-Intensität</span><span class="badge badge-amber">Mittel</span></div>
+        <div class="kpi-value"><span id="en-co2">189</span> <span style="font-size:0.9rem">g/kWh</span></div>
+        <div class="kpi-sub mono">Netz-Emissionsintensität</div>
+      </div>
+    </div>
+    <div class="two-col-layout">
+      <div class="card anim-in" style="--delay:0.25s">
+        <div class="card-header"><span class="card-title">Verbrauch vs. Erzeugung · 24h</span></div>
+        <div style="position:relative;height:250px"><canvas id="energyChart"></canvas></div>
+      </div>
+      <div class="right-col">
+        <div class="card anim-in" style="--delay:0.3s">
+          <div class="card-header"><span class="card-title">🌍 CO₂-Fußabdruck · Magdeburg</span><span class="badge badge-amber">Mittel</span></div>
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted-light);margin-bottom:6px;font-family:'DM Mono',monospace;">
+              <span>0 g/kWh</span><span style="color:var(--red);font-weight:600" id="co2-needle-label">189 g/kWh</span><span>600 g/kWh</span>
+            </div>
+            <div style="height:14px;background:linear-gradient(to right,#15803d,#84cc16,#d97706,#ef4444);border-radius:7px;position:relative;">
+              <div id="co2-track-marker" style="position:absolute;top:-4px;width:22px;height:22px;background:#fff;border:3px solid var(--red-dark);border-radius:50%;transform:translateX(-50%);transition:left 1.5s;left:31.5%"></div>
+            </div>
+          </div>
+          <div class="carbon-info">
+            <div class="ci-row"><span class="ci-label">Aktuell (Netz)</span><span class="ci-val" id="co2-current-val">189 g/kWh</span></div>
+            <div class="ci-row"><span class="ci-label">DE Jahresdurchschnitt</span><span class="ci-val">385 g/kWh</span></div>
+            <div class="ci-row"><span class="ci-label">EU Durchschnitt</span><span class="ci-val">255 g/kWh</span></div>
+            <div class="ci-row"><span class="ci-label">Renewables-Anteil</span><span class="ci-val">56%</span></div>
+            <div class="ci-row"><span class="ci-label">Ziel 2035 (Klimaneutral)</span><span class="ci-val" style="color:var(--green);">0 g/kWh</span></div>
+          </div>
+        </div>
+        <div class="card anim-in" style="--delay:0.35s">
+          <div class="card-header"><span class="card-title">Infrastruktur-Status</span></div>
+          <div class="alert alert-green"><span class="alert-icon">✅</span><div><div class="alert-title">Stromnetz MVB</div><div class="alert-body">99.98% Verfügbarkeit · Nominal</div></div></div>
+          <div class="alert alert-green"><span class="alert-icon">✅</span><div><div class="alert-title">Fernwärmenetz</div><div class="alert-body">Druck normal · 82°C</div></div></div>
+          <div class="alert alert-amber"><span class="alert-icon">⚠️</span><div><div class="alert-title">Solaranlage Dachstaden</div><div class="alert-body">2 Module offline · Wartung geplant</div></div></div>
+          <div class="alert alert-green"><span class="alert-icon">✅</span><div><div class="alert-title">E-Ladenetz</div><div class="alert-body">42/48 Stationen aktiv</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CITY PAGE ===================== -->
+<section class="page" id="page-city">
+  <div class="container">
+    <div class="page-header">
+      <div><h1 class="page-title">Magdeburg entdecken</h1><p class="page-sub mono">Geschichte · Kultur · Die Ottostadt an der Elbe</p></div>
+    </div>
+    <div class="city-hero anim-in" style="--delay:0.05s">
+      <div class="city-hero-text">
+        <div class="mono" style="font-size:11px;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Sachsen-Anhalt · Landeshauptstadt</div>
+        <h2 class="city-hero-title">Die Ottostadt an der Elbe</h2>
+        <p class="city-hero-body">Magdeburg — gegründet 805 n. Chr. — ist eine der ältesten Städte Deutschlands. Mit über 1.200 Jahren Geschichte, dem ältesten Dom Deutschlands und dem Geburtsort des Vakuums ist die Elbestadt voller Überraschungen.</p>
+      </div>
+      <div class="city-hero-stats">
+        <div class="city-stat"><div class="city-stat-val">~244K</div><div class="city-stat-lbl mono">Einwohner</div></div>
+        <div class="city-stat"><div class="city-stat-val">201 km²</div><div class="city-stat-lbl mono">Stadtfläche</div></div>
+        <div class="city-stat"><div class="city-stat-val">805</div><div class="city-stat-lbl mono">Gründungsjahr</div></div>
+      </div>
+    </div>
+    <div class="highlights-grid" id="highlights-grid"></div>
+  </div>
+</section>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">
+    <svg viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" fill="none" style="width:120px;height:40px">
+      <rect x="2" y="18" width="6" height="20" rx="1" fill="#E84E0C"/>
+      <rect x="10" y="10" width="6" height="28" rx="1" fill="#E84E0C"/>
+      <rect x="18" y="14" width="6" height="24" rx="1" fill="#E84E0C"/>
+      <rect x="26" y="8" width="6" height="30" rx="1" fill="#E84E0C"/>
+      <text x="40" y="22" font-family="Fraunces, serif" font-size="11" font-weight="700" fill="white">Ottostadt</text>
+      <text x="40" y="35" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.55)" letter-spacing="0.08em">MAGDEBURG</text>
+    </svg>
+  </div>
+  <div class="footer-center mono">Smart City Magdeburg · Echtzeit-Dashboard 2026</div>
+  <div class="footer-right mono">Daten: PegelOnline WSV · Open-Meteo · MVB · Stadtwerke MD</div>
+</footer>
+
+<script>
+'use strict';
+
+const MAGDEBURG = { lat:52.1205, lng:11.6276 };
+const PEGEL_BASE   = 'https://www.pegelonline.wsv.de/webservices/rest-api/v2';
+const WEATHER_BASE = 'https://api.open-meteo.com/v1';
+const AQI_BASE     = 'https://air-quality-api.open-meteo.com/v1';
+const LAT = 52.1205, LNG = 11.6276;
+
+const TRANSLATIONS = {
+  de: { nav_overview:'Übersicht', nav_mobility:'Mobilität', nav_environment:'Umwelt', nav_energy:'Energie', nav_city:'Die Stadt', overview_title:'Stadtüberblick', kpi_aqi:'Luftqualität AQI', kpi_elbe:'Elbe-Pegel', kpi_traffic:'Verkehr', kpi_temp:'Temperatur' },
+  en: { nav_overview:'Overview', nav_mobility:'Mobility', nav_environment:'Environment', nav_energy:'Energy', nav_city:'The City', overview_title:'City Overview', kpi_aqi:'Air Quality AQI', kpi_elbe:'Elbe Level', kpi_traffic:'Traffic', kpi_temp:'Temperature' }
+};
+let currentLang = 'de';
+function t(key) { return (TRANSLATIONS[currentLang]||TRANSLATIONS.de)[key]||key; }
+
+const state = {
+  elbe: null, weather: null, airQuality: null,
+  charts: {}, elbeHistory: [],
+  trafficHistory: Array.from({length:24},(_,i)=>({ hour:i, load:20+Math.round(Math.sin(i*0.4)*25+Math.random()*15+(i>7&&i<9||i>16&&i<19?35:0)) })),
+  transitLines: [
+    {name:'Tram 1 · Hauptbahnhof', load:72, max:100},
+    {name:'Tram 2 · Sudenburg',    load:45, max:100},
+    {name:'Tram 3 · Barleber See', load:88, max:100},
+    {name:'Bus 51 · Rotehorn',     load:31, max:100},
+    {name:'Bus 60 · Alte Neustadt',load:59, max:100},
+    {name:'Bus 62 · Herrenkrug',   load:23, max:100},
+    {name:'S-Bahn · Schönebeck',   load:67, max:100},
+  ],
+  live: { aqi:42, pm25:12, traffic:58, noise:58, bikes:178, scooters:293, jams:4, solar:47, wind_energy:118, consumption:312, co2:189 },
+  tramMarkers:[], tramPositions:[],
+  busMarkers:[], busPositions:[],  // FIX 3: bus animation state
+  layerGroups:{}, userMarker:null, weatherDisplay:null,
+};
+
+function startClock() {
+  const el=document.getElementById('clock'); if(!el) return;
+  function tick(){el.textContent=new Date().toLocaleTimeString('de-DE');}
+  tick(); setInterval(tick,1000);
+}
+
+function initLangToggle() {
+  const btn=document.getElementById('lang-toggle'); if(!btn) return;
+  btn.addEventListener('click',()=>{
+    currentLang=currentLang==='de'?'en':'de';
+    btn.textContent=currentLang==='de'?'EN':'DE';
+    applyTranslations();
+    renderTransitBars('transit-bars');
+    renderTransitBars('transit-bars-full');
+    renderHighlights();
+    if(state.weatherDisplay){setEl('kpi-weather-desc',wmoDesc(state.weatherDisplay.code));setEl('env-temp',state.weatherDisplay.temp+'°');}
+  });
+}
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key=el.dataset.i18n; const val=t(key);
+    if((el.tagName==='INPUT'||el.tagName==='TEXTAREA')&&'placeholder' in el) el.placeholder=val;
+    else el.textContent=val;
+  });
+}
+
+function initNav() {
+  document.querySelectorAll('.nav-tab,.mobile-nav-item').forEach(tab=>{
+    tab.addEventListener('click',()=>switchPage(tab.dataset.page));
+  });
+  document.getElementById('menu-toggle')?.addEventListener('click',()=>{document.getElementById('mobile-nav-overlay').classList.add('open');});
+  document.getElementById('mobile-nav-close')?.addEventListener('click',()=>{document.getElementById('mobile-nav-overlay').classList.remove('open');});
+  document.getElementById('mobile-nav-overlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
+}
+function switchPage(pageId) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab,.mobile-nav-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+pageId)?.classList.add('active');
+  document.querySelectorAll(`[data-page="${pageId}"]`).forEach(t=>t.classList.add('active'));
+  document.getElementById('mobile-nav-overlay')?.classList.remove('open');
+  document.querySelectorAll(`#page-${pageId} .anim-in`).forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
+  if(pageId==='environment'&&!state.charts.elbe) initEnvCharts();
+  if(pageId==='energy'&&!state.charts.energy) initEnergyCharts();
+  if(pageId==='mobility') renderTransitBars('transit-bars-full');
+}
+
+const POIS=[
+  {lat:52.1208,lng:11.6312,type:'restaurant',name:'Anas Grill',detail:'Halal · Döner & Grill'},
+  {lat:52.1190,lng:11.6270,type:'restaurant',name:'Zur Alten Schmiede',detail:'Deutsche Küche · Traditionell'},
+  {lat:52.1220,lng:11.6280,type:'restaurant',name:'Restaurant Domplatz',detail:'Regionale Küche · Domplatz'},
+  {lat:52.1175,lng:11.6240,type:'restaurant',name:'Petrikrog',detail:'Fisch & Fleisch'},
+  {lat:52.1235,lng:11.6340,type:'restaurant',name:'Brauhaus am Hasselbachpl.',detail:'Brauhaus · Regionale Küche'},
+  {lat:52.1215,lng:11.6300,type:'cafe',name:'Café Central',detail:'Kaffee & Kuchen · Innenstadt'},
+  {lat:52.1230,lng:11.6255,type:'cafe',name:'Kaffeebar am Dom',detail:'Specialty Coffee'},
+  {lat:52.1185,lng:11.6320,type:'cafe',name:'Café Tomate',detail:'Bio · Vegan · Brunch'},
+  {lat:52.1202,lng:11.6265,type:'cafe',name:'Literaturcafé',detail:'Bücher & Kaffee'},
+  {lat:52.1210,lng:11.6285,type:'bar',name:'Festung Mark Bar',detail:'Live Music · Cocktails'},
+  {lat:52.1195,lng:11.6345,type:'bar',name:'Hassi Bar',detail:'Hasselbachplatz · Cocktails'},
+  {lat:52.1228,lng:11.6260,type:'bar',name:'Bierhof Remise',detail:'Craft Beer · Altstadt'},
+  {lat:52.1213,lng:11.6275,type:'sight',name:'Magdeburger Dom',detail:'Gotischer Dom · 1363 · Kaiser Otto I.'},
+  {lat:52.1280,lng:11.6340,type:'sight',name:'Grüne Zitadelle',detail:'Hundertwasser Architektur · 2005'},
+  {lat:52.1165,lng:11.6182,type:'sight',name:'Kulturhistorisches Museum',detail:'Otto von Guericke · Halbkugeln'},
+  {lat:52.1155,lng:11.6390,type:'sight',name:'Albinmüller-Turm',detail:'Elbauenpark · Panoramablick'},
+  {lat:52.1340,lng:11.6460,type:'sight',name:'Herrenkrug Park',detail:'Naturpark · Elbauen'},
+  {lat:52.1090,lng:11.6250,type:'sight',name:'Rotehornpark',detail:'Stadtpark · Elbe'},
+  {lat:52.1188,lng:11.6290,type:'sight',name:'Kloster Unser Lieben Frauen',detail:'Romanische Klosterkirche · Kunstmuseum'},
+];
+
+const TRAM_STOPS=[
+  {lat:52.1305,lng:11.6275,name:'Hauptbahnhof',lines:'Tram 1,2,3,4,5,6,8,9,10'},
+  {lat:52.1213,lng:11.6278,name:'Domplatz',lines:'Tram 1,5,6,8'},
+  {lat:52.1232,lng:11.6318,name:'Alter Markt',lines:'Tram 1,2,5,9'},
+  {lat:52.1196,lng:11.6255,name:'Hasselbachplatz',lines:'Tram 3,6,8,9,10'},
+  {lat:52.1150,lng:11.6210,name:'Sudenburg Markt',lines:'Tram 2,6'},
+  {lat:52.1270,lng:11.6395,name:'Universitätsplatz',lines:'Tram 4,9'},
+  {lat:52.1258,lng:11.6240,name:'Breiter Weg',lines:'Tram 1,4,9,10'},
+];
+
+const BUS_STOPS=[
+  {lat:52.1308,lng:11.6282,name:'Hauptbahnhof (Bus)',lines:'Bus 51,52,53,60,61,62,73'},
+  {lat:52.1220,lng:11.6350,name:'Allee-Center',lines:'Bus 51,60,73'},
+  {lat:52.1095,lng:11.6305,name:'Rotehorn',lines:'Bus 51'},
+  {lat:52.1350,lng:11.6480,name:'Herrenkrug',lines:'Bus 62'},
+  {lat:52.1210,lng:11.6195,name:'Stadtfeld West',lines:'Bus 60,61'},
+];
+
+const TRAM_ROUTES=[
+  {name:'Tram 1',waypoints:[[52.1150,11.6205],[52.1175,11.6230],[52.1196,11.6260],[52.1213,11.6278],[52.1232,11.6310],[52.1258,11.6340],[52.1295,11.6375]]},
+  {name:'Tram 2',waypoints:[[52.1150,11.6210],[52.1170,11.6240],[52.1196,11.6260],[52.1213,11.6278],[52.1250,11.6268],[52.1290,11.6260],[52.1305,11.6275]]},
+  {name:'Tram 3',waypoints:[[52.1305,11.6275],[52.1290,11.6275],[52.1255,11.6282],[52.1213,11.6278],[52.1196,11.6255],[52.1170,11.6240],[52.1140,11.6200]]},
+  {name:'Tram 5',waypoints:[[52.1305,11.6275],[52.1295,11.6290],[52.1270,11.6310],[52.1232,11.6318],[52.1213,11.6278],[52.1196,11.6260],[52.1170,11.6250]]},
+];
+
+// FIX 3: Bus routes for animation
+const BUS_ROUTES=[
+  {name:'Bus 51',waypoints:[[52.1308,11.6282],[52.1260,11.6320],[52.1220,11.6350],[52.1150,11.6310],[52.1095,11.6305]]},
+  {name:'Bus 60',waypoints:[[52.1308,11.6282],[52.1260,11.6240],[52.1210,11.6195],[52.1165,11.6140]]},
+  {name:'Bus 62',waypoints:[[52.1308,11.6282],[52.1325,11.6370],[52.1350,11.6440],[52.1350,11.6480]]},
+];
+
+function initMap() {
+  const map = L.map('city-map',{center:[MAGDEBURG.lat,MAGDEBURG.lng],zoom:13,zoomControl:true});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CartoDB',maxZoom:19
+  }).addTo(map);
+
+  const lgR=L.layerGroup(), lgC=L.layerGroup(), lgB=L.layerGroup(), lgS=L.layerGroup();
+  const lgT=L.layerGroup(), lgBus=L.layerGroup(), lgTA=L.layerGroup(), lgBA=L.layerGroup();
+  state.layerGroups={restaurants:lgR,cafes:lgC,bars:lgB,sights:lgS,trams:lgT,buses:lgBus,tramAnim:lgTA,busAnim:lgBA};
+
+  const TYPE_EMOJI={restaurant:'🍽',cafe:'☕',bar:'🍺',sight:'⭐'};
+  const TYPE_GROUP={restaurant:'restaurants',cafe:'cafes',bar:'bars',sight:'sights'};
+
+  POIS.forEach(p=>{
+    const icon=L.divIcon({className:'',html:`<div class="poi-marker">${TYPE_EMOJI[p.type]||'📍'}</div>`,iconSize:[32,32],iconAnchor:[16,16]});
+    const marker=L.marker([p.lat,p.lng],{icon}).bindPopup(`<b>${p.name}</b><br><span class="pop-detail">${p.detail}</span>`);
+    state.layerGroups[TYPE_GROUP[p.type]].addLayer(marker);
+  });
+
+  TRAM_STOPS.forEach(s=>{
+    const icon=L.divIcon({className:'',html:`<div class="transit-stop-marker tram-stop">🚋</div>`,iconSize:[30,30],iconAnchor:[15,15]});
+    lgT.addLayer(L.marker([s.lat,s.lng],{icon}).bindPopup(`<b>${s.name}</b><br><span class="pop-detail">${s.lines}</span>`));
+  });
+
+  BUS_STOPS.forEach(s=>{
+    const icon=L.divIcon({className:'',html:`<div class="transit-stop-marker bus-stop">🚌</div>`,iconSize:[30,30],iconAnchor:[15,15]});
+    lgBus.addLayer(L.marker([s.lat,s.lng],{icon}).bindPopup(`<b>${s.name}</b><br><span class="pop-detail">${s.lines}</span>`));
+  });
+
+  // Animated trams
+  TRAM_ROUTES.forEach((route)=>{
+    const startFrac=Math.random();
+    state.tramPositions.push({route,frac:startFrac,dir:1});
+    const icon=L.divIcon({className:'',html:`<div class="tram-anim-marker">🚋</div>`,iconSize:[28,28],iconAnchor:[14,14]});
+    const pos=interpolateRoute(route.waypoints,startFrac);
+    const marker=L.marker(pos,{icon}).bindPopup(`<b>🚋 ${route.name}</b><br><span class="pop-detail">Live-Position</span>`);
+    lgTA.addLayer(marker);
+    state.tramMarkers.push(marker);
+  });
+  setInterval(animateTrams,2000);
+
+  // FIX 3: Animated buses — each bus moves along its route
+  BUS_ROUTES.forEach((route)=>{
+    const startFrac=Math.random();
+    state.busPositions.push({route,frac:startFrac,dir:1});
+    const icon=L.divIcon({className:'',html:`<div class="bus-anim-marker">🚌</div>`,iconSize:[28,28],iconAnchor:[14,14]});
+    const pos=interpolateRoute(route.waypoints,startFrac);
+    const marker=L.marker(pos,{icon}).bindPopup(`<b>🚌 ${route.name}</b><br><span class="pop-detail">Live-Position</span>`);
+    lgBA.addLayer(marker);
+    state.busMarkers.push(marker);
+  });
+  setInterval(animateBuses,2500);
+
+  // Add ALL layers by default
+  Object.values(state.layerGroups).forEach(lg=>lg.addTo(map));
+
+  document.querySelectorAll('.map-filter').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const layer=btn.dataset.layer;
+      if(layer==='all'){
+        document.querySelectorAll('.map-filter').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        Object.values(state.layerGroups).forEach(lg=>lg.addTo(map));
+        return;
+      }
+      btn.classList.toggle('active');
+      document.querySelector('.map-filter[data-layer="all"]')?.classList.remove('active');
+      const activeFilters=new Set([...document.querySelectorAll('.map-filter.active')].map(b=>b.dataset.layer));
+      if(activeFilters.size===0){
+        document.querySelector('.map-filter[data-layer="all"]')?.classList.add('active');
+        Object.values(state.layerGroups).forEach(lg=>lg.addTo(map));
+        return;
+      }
+      const show=(name,cond)=>cond?state.layerGroups[name]?.addTo(map):map.removeLayer(state.layerGroups[name]);
+      show('restaurants', activeFilters.has('restaurants'));
+      show('cafes',       activeFilters.has('cafes'));
+      show('bars',        activeFilters.has('bars'));
+      show('sights',      activeFilters.has('sights'));
+      show('trams',       activeFilters.has('trams'));
+      show('tramAnim',    activeFilters.has('trams'));
+      show('buses',       activeFilters.has('buses'));
+      show('busAnim',     activeFilters.has('buses')); // FIX 3: toggle bus animated layer
+    });
+  });
+
+  const locBtn=L.control({position:'topright'});
+  locBtn.onAdd=function(){
+    const div=L.DomUtil.create('div','leaflet-bar leaflet-control');
+    div.innerHTML=`<a href="#" title="My Location" style="font-size:16px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:var(--red-dark);border:1px solid var(--red);border-radius:6px;color:white;text-decoration:none">📍</a>`;
+    L.DomEvent.on(div.querySelector('a'),'click',e=>{L.DomEvent.preventDefault(e);locateUser(map);});
+    return div;
+  };
+  locBtn.addTo(map);
+  state.map=map;
+}
+
+function interpolateRoute(waypoints,frac){
+  frac=Math.max(0,Math.min(1,frac));
+  const n=waypoints.length-1;
+  const idx=Math.floor(frac*n);
+  const rem=frac*n-idx;
+  if(idx>=n) return waypoints[n];
+  const a=waypoints[idx],b=waypoints[idx+1];
+  return[a[0]+(b[0]-a[0])*rem,a[1]+(b[1]-a[1])*rem];
+}
+
+function animateTrams(){
+  state.tramPositions.forEach((tp,i)=>{
+    tp.frac+=tp.dir*0.035;
+    if(tp.frac>=1){tp.frac=1;tp.dir=-1;}
+    if(tp.frac<=0){tp.frac=0;tp.dir=1;}
+    state.tramMarkers[i].setLatLng(interpolateRoute(tp.route.waypoints,tp.frac));
+  });
+}
+
+// FIX 3: animateBuses — mirrors animateTrams for buses
+function animateBuses(){
+  state.busPositions.forEach((bp,i)=>{
+    bp.frac+=bp.dir*0.04;
+    if(bp.frac>=1){bp.frac=1;bp.dir=-1;}
+    if(bp.frac<=0){bp.frac=0;bp.dir=1;}
+    state.busMarkers[i].setLatLng(interpolateRoute(bp.route.waypoints,bp.frac));
+  });
+}
+
+function locateUser(map){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude,longitude}=pos.coords;
+    if(state.userMarker) map.removeLayer(state.userMarker);
+    const icon=L.divIcon({className:'',html:`<div class="user-marker"></div>`,iconSize:[18,18],iconAnchor:[9,9]});
+    state.userMarker=L.marker([latitude,longitude],{icon}).addTo(map);
+    state.userMarker.bindPopup('<b>📍 Dein Standort</b>').openPopup();
+    map.setView([latitude,longitude],15);
+  },()=>map.setView([MAGDEBURG.lat,MAGDEBURG.lng],14));
+}
+
+// ======================================================
+// FETCH: ELBE — FIX 2: show cm, with fallback showing immediately
+// ======================================================
+async function fetchElbe(){
+  // Show a simulated value immediately so the KPI isn't blank
+  const fallbackCm = Math.round(180+Math.random()*60);
+  updateElbeUI(fallbackCm);
+
+  try{
+    const stRes=await fetch(`${PEGEL_BASE}/stations.json?waters=ELBE`);
+    if(!stRes.ok) throw new Error();
+    const stations=await stRes.json();
+    const station=stations.find(s=>s.shortname?.toUpperCase().includes('MAGDEBURG')&&s.longname?.toUpperCase().includes('STROM'))
+                ||stations.find(s=>s.shortname?.toUpperCase().includes('MAGDEBURG'));
+    if(!station) throw new Error();
+    const measRes=await fetch(`${PEGEL_BASE}/stations/${station.uuid}/W/currentmeasurement.json`);
+    if(!measRes.ok) throw new Error();
+    const meas=await measRes.json();
+    const v=Math.round(meas.value);
+    state.elbe=v; updateElbeUI(v);
+    fetchElbeHistory(station.uuid);
+  }catch{
+    // fallback already shown, generate history
+    state.elbe=fallbackCm;
+    generateSimElbeHistory();
+  }
+}
+
+async function fetchElbeHistory(uuid){
+  try{
+    const end=new Date().toISOString();
+    const start=new Date(Date.now()-30*24*3600*1000).toISOString();
+    const res=await fetch(`${PEGEL_BASE}/stations/${uuid}/W/measurements.json?start=${start}&end=${end}`);
+    if(!res.ok) throw new Error();
+    const data=await res.json();
+    const step=Math.max(1,Math.floor(data.length/30));
+    state.elbeHistory=data.filter((_,i)=>i%step===0).slice(-30).map(d=>({
+      date:new Date(d.timestamp).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),
+      value:Math.round(d.value)
+    }));
+    if(state.charts.elbe) updateElbeChart();
+  }catch{generateSimElbeHistory();}
+}
+
+function generateSimElbeHistory(){
+  let v=state.elbe||190;
+  state.elbeHistory=Array.from({length:30},(_,i)=>{
+    v+=(Math.random()-0.48)*12; v=Math.max(100,Math.min(350,v));
+    const d=new Date(Date.now()-(29-i)*24*3600*1000);
+    return{date:d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),value:Math.round(v)};
+  });
+  if(state.charts.elbe) updateElbeChart();
+}
+
+// FIX 2: updateElbeUI shows cm directly (not meters)
+function updateElbeUI(cm){
+  const el=document.getElementById('kpi-elbe');
+  if(el){el.textContent=cm+' cm';flash(el.closest('.kpi-card'));}
+  const pct=Math.min(100,Math.round(cm/590*100));
+  const fill=document.getElementById('river-fill');
+  if(fill) fill.style.width=pct+'%';
+  const badge=document.getElementById('elbe-badge');
+  if(badge){
+    if(cm>=590){badge.className='badge badge-red';badge.textContent='Warnung';}
+    else if(cm>=400){badge.className='badge badge-amber';badge.textContent='Erhöht';}
+    else{badge.className='badge badge-green';badge.textContent='Normal';}
+  }
+  setEl('elbe-live-val',cm);
+  const eb2=document.getElementById('elbe-chart-badge');
+  if(eb2){
+    if(cm>=590){eb2.className='badge badge-red';eb2.textContent='Warnung';}
+    else{eb2.className='badge badge-green';eb2.textContent='Normal';}
+  }
+}
+
+async function fetchWeather(){
+  try{
+    const url=`${WEATHER_BASE}/forecast?latitude=${LAT}&longitude=${LNG}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min&wind_speed_unit=kmh&timezone=Europe%2FBerlin&forecast_days=7`;
+    const res=await fetch(url);
+    if(!res.ok) throw new Error();
+    const data=await res.json();
+    state.weather=data;
+    updateWeatherUI(data);
+  }catch{if(!state.weather) updateWeatherUIFallback();}
+}
+const WMO_DE={0:'Klar',1:'Überwiegend klar',2:'Teilweise bewölkt',3:'Bewölkt',45:'Nebel',51:'Leichter Niesel',61:'Leichter Regen',63:'Regen',65:'Starker Regen',80:'Schauer',95:'Gewitter'};
+const WMO_EN={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',51:'Light drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',80:'Showers',95:'Thunderstorm'};
+function wmoDesc(code){return(currentLang==='en'?WMO_EN:WMO_DE)[code]||'–';}
+function updateWeatherUI(data){
+  const c=data.current;
+  const temp=c.temperature_2m?.toFixed(1)??'--';
+  const hum=Math.round(c.relative_humidity_2m??0);
+  const wSpd=Math.round(c.wind_speed_10m??0);
+  const wGst=Math.round(c.wind_gusts_10m??0);
+  const wDir=Math.round(c.wind_direction_10m??0);
+  state.weatherDisplay={temp,hum,wSpd,wGst,wDir,code:c.weather_code};
+  setEl('kpi-temp',temp+'°'); setEl('kpi-humidity',hum+'%'); setEl('kpi-weather-desc',wmoDesc(c.weather_code));
+  setEl('env-temp',temp+'°'); setEl('env-humidity',hum+'%');
+  setEl('wind-speed',wSpd); setEl('wind-gusts',wGst); setEl('wind-dir-label',degToCompass(wDir));
+  const needle=document.getElementById('compass-needle');
+  if(needle) needle.style.transform=`translate(-50%,-100%) rotate(${wDir}deg)`;
+  if(data.daily&&state.charts.temp) updateTempChart(data.daily);
+}
+function updateWeatherUIFallback(){
+  setEl('kpi-temp','18°'); setEl('kpi-humidity','65%'); setEl('kpi-weather-desc',wmoDesc(2));
+  setEl('env-temp','18°'); setEl('env-humidity','65%');
+  setEl('wind-speed','14'); setEl('wind-gusts','22'); setEl('wind-dir-label','NW');
+}
+function degToCompass(deg){const dirs=['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];return dirs[Math.round(deg/22.5)%16];}
+
+async function fetchAirQuality(){
+  try{
+    const url=`${AQI_BASE}/air-quality?latitude=${LAT}&longitude=${LNG}&current=european_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide&timezone=Europe%2FBerlin`;
+    const res=await fetch(url);
+    if(!res.ok) throw new Error();
+    const data=await res.json();
+    state.airQuality=data;
+    updateAQIUI(data);
+  }catch{if(!state.airQuality) updateAQIUIFallback();}
+}
+function updateAQIUI(data){
+  const c=data.current;
+  const aqi=Math.round(c.european_aqi??42);
+  const pm25=(c.pm2_5??12).toFixed(1);
+  const pm10=Math.round(c.pm10??18);
+  const no2=Math.round(c.nitrogen_dioxide??22);
+  const o3=Math.round(c.ozone??48);
+  const co=(c.carbon_monoxide??180).toFixed(0);
+  state.live.aqi=aqi; state.live.pm25=pm25;
+  setEl('kpi-aqi',aqi); setEl('kpi-pm25',pm25); setEl('env-aqi',aqi);
+  ['aqi-badge','env-aqi-badge'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    if(aqi<=40){el.className='badge badge-green';el.textContent='Gut';}
+    else if(aqi<=60){el.className='badge badge-amber';el.textContent='Mäßig';}
+    else{el.className='badge badge-red';el.textContent='Schlecht';}
+  });
+  renderAQIBreakdown([
+    {label:'PM2.5',value:parseFloat(pm25),max:25,unit:'µg/m³',color:'var(--red)'},
+    {label:'PM10', value:pm10,max:50,unit:'µg/m³',color:'var(--amber)'},
+    {label:'NO₂',  value:no2, max:200,unit:'µg/m³',color:'var(--blue)'},
+    {label:'O₃',   value:o3,  max:180,unit:'µg/m³',color:'var(--green)'},
+    {label:'CO',   value:parseFloat(co)/10,max:100,unit:'×10µg/m³',color:'var(--muted)'},
+  ]);
+}
+function updateAQIUIFallback(){
+  setEl('kpi-aqi','42'); setEl('kpi-pm25','12'); setEl('env-aqi','42');
+  renderAQIBreakdown([
+    {label:'PM2.5',value:12,max:25,unit:'µg/m³',color:'var(--red)'},
+    {label:'PM10', value:18,max:50,unit:'µg/m³',color:'var(--amber)'},
+    {label:'NO₂',  value:22,max:200,unit:'µg/m³',color:'var(--blue)'},
+    {label:'O₃',   value:48,max:180,unit:'µg/m³',color:'var(--green)'},
+    {label:'CO',   value:18,max:100,unit:'×10µg/m³',color:'var(--muted)'},
+  ]);
+}
+function renderAQIBreakdown(items){
+  const el=document.getElementById('aqi-breakdown'); if(!el) return;
+  el.innerHTML=items.map(item=>{
+    const pct=Math.min(100,Math.round(item.value/item.max*100));
+    return`<div class="aqi-item"><span class="aqi-item-label">${item.label}</span><div class="aqi-track"><div class="aqi-fill" style="width:${pct}%;background:${item.color}"></div></div><span class="aqi-val">${item.value} ${item.unit}</span></div>`;
+  }).join('');
+}
+
+const CHART_DEFAULTS={
+  responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'var(--red-dark)',titleFont:{family:'DM Mono'},bodyFont:{family:'DM Mono'}}},
+  animation:{duration:600,easing:'easeOutQuart'},
+};
+function makeGradient(ctx,c1,c2){const g=ctx.createLinearGradient(0,0,0,ctx.canvas.height);g.addColorStop(0,c1);g.addColorStop(1,c2);return g;}
+
+function initSparklines(){
+  ['aqi','traffic'].forEach(key=>{
+    const container=document.getElementById('spark-'+key); if(!container) return;
+    const canvas=document.createElement('canvas');
+    canvas.style.width='100%'; canvas.style.height='32px';
+    container.appendChild(canvas);
+    const pts=Array.from({length:20},()=>Math.random()*60+20);
+    state.charts['spark_'+key]=new Chart(canvas.getContext('2d'),{
+      type:'line',
+      data:{labels:pts.map((_,i)=>i),datasets:[{data:pts,borderColor:key==='aqi'?'#E84E0C':'#b45309',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:key==='aqi'?'rgba(232,78,12,0.08)':'rgba(180,83,9,0.08)',tension:0.4}]},
+      options:{...CHART_DEFAULTS,scales:{x:{display:false},y:{display:false}},plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:0}}
+    });
+  });
+}
+
+function initMobilityCharts(){
+  const canvas=document.getElementById('trafficChart');
+  if(!canvas||state.charts.traffic) return;
+  const ctx=canvas.getContext('2d');
+  const hours=state.trafficHistory.map(d=>d.hour+':00');
+  const loads=state.trafficHistory.map(d=>d.load);
+  const grad=makeGradient(ctx,'rgba(180,83,9,0.4)','rgba(180,83,9,0.02)');
+  state.charts.traffic=new Chart(ctx,{
+    type:'line',
+    data:{labels:hours,datasets:[{data:loads,borderColor:'#d97706',borderWidth:2,fill:true,backgroundColor:grad,tension:0.4,pointRadius:2,pointBackgroundColor:'#d97706'}]},
+    options:{...CHART_DEFAULTS,scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)',maxTicksLimit:8},grid:{display:false}},y:{min:0,max:100,ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)'},grid:{color:'rgba(232,78,12,0.06)'}}}}
+  });
+  renderTransitBars('transit-bars-full');
+}
+
+function initMiniTrafficChart(){
+  const canvas=document.getElementById('trafficMiniChart'); if(!canvas||state.charts.trafficMini) return;
+  const ctx=canvas.getContext('2d');
+  const hours=state.trafficHistory.map(d=>d.hour+':00');
+  const loads=state.trafficHistory.map(d=>d.load);
+  state.charts.trafficMini=new Chart(ctx,{
+    type:'bar',
+    data:{labels:hours,datasets:[{data:loads,backgroundColor:loads.map(v=>v>70?'rgba(232,78,12,0.8)':v>45?'rgba(217,119,6,0.7)':'rgba(21,128,61,0.7)'),borderRadius:3,borderSkipped:false}]},
+    options:{...CHART_DEFAULTS,scales:{x:{ticks:{font:{family:'DM Mono',size:8},color:'rgba(122,64,48,0.5)',maxTicksLimit:6},grid:{display:false}},y:{min:0,max:100,ticks:{font:{family:'DM Mono',size:8},color:'rgba(122,64,48,0.5)'},grid:{color:'rgba(232,78,12,0.05)'}}}}
+  });
+}
+
+function initEnvCharts(){
+  const elbeCtx=document.getElementById('elbeChart')?.getContext('2d');
+  if(elbeCtx&&!state.charts.elbe){
+    const labels=state.elbeHistory.map(d=>d.date);
+    const values=state.elbeHistory.map(d=>d.value);
+    const grad=makeGradient(elbeCtx,'rgba(59,130,246,0.4)','rgba(59,130,246,0.02)');
+    state.charts.elbe=new Chart(elbeCtx,{
+      type:'line',
+      data:{labels,datasets:[
+        {data:values,borderColor:'#3b82f6',borderWidth:2,fill:true,backgroundColor:grad,tension:0.3,pointRadius:2,pointBackgroundColor:'#3b82f6'},
+        {data:Array(labels.length).fill(590),borderColor:'rgba(232,78,12,0.5)',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false,label:'Warnstufe 1'}
+      ]},
+      options:{...CHART_DEFAULTS,plugins:{...CHART_DEFAULTS.plugins,legend:{display:true,position:'bottom',labels:{font:{family:'DM Mono',size:10},color:'rgba(122,64,48,0.7)',boxWidth:12}}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)',maxTicksLimit:10},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)'},grid:{color:'rgba(232,78,12,0.06)'}}}}
+    });
+  }
+  const tempCtx=document.getElementById('tempChart')?.getContext('2d');
+  if(tempCtx&&!state.charts.temp){
+    const days=['Mo','Di','Mi','Do','Fr','Sa','So'];
+    state.charts.temp=new Chart(tempCtx,{
+      type:'line',
+      data:{labels:days,datasets:[
+        {label:'Max °C',data:[16,18,21,19,15,17,20],borderColor:'var(--red)',borderWidth:2,fill:false,tension:0.4,pointRadius:3,pointBackgroundColor:'var(--red)'},
+        {label:'Min °C',data:[8,9,12,11,7,9,11],borderColor:'#3b82f6',borderWidth:2,fill:false,tension:0.4,pointRadius:3,pointBackgroundColor:'#3b82f6'}
+      ]},
+      options:{...CHART_DEFAULTS,plugins:{...CHART_DEFAULTS.plugins,legend:{display:true,position:'bottom',labels:{font:{family:'DM Mono',size:10},color:'rgba(122,64,48,0.7)',boxWidth:12}}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)'},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)',callback:v=>v+'°'},grid:{color:'rgba(232,78,12,0.06)'}}}}
+    });
+    if(state.weather?.daily) updateTempChart(state.weather.daily);
+  }
+}
+function updateElbeChart(){
+  if(!state.charts.elbe||!state.elbeHistory.length) return;
+  state.charts.elbe.data.labels=state.elbeHistory.map(d=>d.date);
+  state.charts.elbe.data.datasets[0].data=state.elbeHistory.map(d=>d.value);
+  state.charts.elbe.data.datasets[1].data=Array(state.elbeHistory.length).fill(590);
+  state.charts.elbe.update('none');
+}
+function updateTempChart(daily){
+  if(!state.charts.temp) return;
+  state.charts.temp.data.datasets[0].data=daily.temperature_2m_max?.slice(0,7)||[];
+  state.charts.temp.data.datasets[1].data=daily.temperature_2m_min?.slice(0,7)||[];
+  state.charts.temp.update();
+}
+function initEnergyCharts(){
+  const enCtx=document.getElementById('energyChart')?.getContext('2d');
+  if(enCtx&&!state.charts.energy){
+    const hours=Array.from({length:24},(_,i)=>i+':00');
+    const cons=hours.map((_,i)=>220+Math.sin(i*0.5)*60+(i>7&&i<21?80:0)+Math.random()*20);
+    const solar=hours.map((_,i)=>i>5&&i<20?Math.max(0,Math.sin((i-5)/15*Math.PI)*80+Math.random()*10):0);
+    const wind=hours.map(()=>80+Math.random()*60);
+    state.charts.energy=new Chart(enCtx,{
+      type:'line',
+      data:{labels:hours,datasets:[
+        {label:'Verbrauch (MW)',data:cons,borderColor:'var(--red)',borderWidth:2,fill:true,backgroundColor:'rgba(232,78,12,0.08)',tension:0.4,pointRadius:0},
+        {label:'Solar (MW)',data:solar,borderColor:'#d97706',borderWidth:2,fill:true,backgroundColor:'rgba(217,119,6,0.08)',tension:0.4,pointRadius:0},
+        {label:'Wind (MW)',data:wind,borderColor:'#3b82f6',borderWidth:2,fill:true,backgroundColor:'rgba(59,130,246,0.08)',tension:0.4,pointRadius:0}
+      ]},
+      options:{...CHART_DEFAULTS,plugins:{...CHART_DEFAULTS.plugins,legend:{display:true,position:'bottom',labels:{font:{family:'DM Mono',size:10},color:'rgba(122,64,48,0.7)',boxWidth:12}}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)',maxTicksLimit:8},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'rgba(122,64,48,0.6)'},grid:{color:'rgba(232,78,12,0.06)'}}}}
+    });
+  }
+}
+
+function renderTransitBars(containerId){
+  const el=document.getElementById(containerId); if(!el) return;
+  el.innerHTML=state.transitLines.map((line,i)=>{
+    const pct=line.load;
+    const color=pct>80?'var(--red)':pct>60?'#d97706':'var(--green)';
+    return`<div class="transit-bar-item"><div class="transit-bar-label"><span>${line.name}</span><span class="transit-bar-pct" data-transit-pct="${i}">${pct}%</span></div><div class="transit-bar-track"><div class="transit-bar-fill" data-transit-bar="${i}" style="width:${pct}%;background:${color}"></div></div></div>`;
+  }).join('');
+}
+function initOverviewTransitBars(){
+  const el=document.getElementById('transit-bars'); if(!el) return;
+  el.innerHTML=state.transitLines.slice(0,4).map((line,i)=>{
+    const pct=line.load;
+    const color=pct>80?'var(--red)':pct>60?'#d97706':'var(--green)';
+    return`<div class="transit-bar-item"><div class="transit-bar-label"><span>${line.name}</span><span class="transit-bar-pct" data-transit-pct="${i}">${pct}%</span></div><div class="transit-bar-track"><div class="transit-bar-fill" data-transit-bar="${i}" style="width:${pct}%;background:${color}"></div></div></div>`;
+  }).join('');
+}
+
+const HIGHLIGHTS=[
+  {icon:'⛪',title:'Magdeburger Dom',tag:'📍 Domplatz · Eintritt frei',body:'Der älteste gotische Dom Deutschlands (geweiht 1363). Kaiser Otto I. ist hier begraben — Begründer des Heiligen Römischen Reiches. Zwei 100-m-Türme prägen die Skyline.',article:`<p>Der Magdeburger Dom ist das älteste gotische Bauwerk Deutschlands. Kaiser Otto I. (912–973) ließ bereits im 10. Jahrhundert einen Dom bauen, der jedoch 1207 fast vollständig abbrannte. Der heutige Dom wurde ab 1209 neu errichtet und 1363 geweiht.</p><h3>Architektur</h3><p>Die beiden Türme des Doms erreichen eine Höhe von 104 und 99 Metern. Das Innere beherbergt bedeutende mittelalterliche Kunstschätze, darunter romanische Skulpturen und gotische Glasfenster.</p>`},
+  {icon:'🎈',title:'Geburtsort des Vakuums',tag:'🔬 Kulturhistorisches Museum',body:'Otto von Guericke (1602–1686) erfand die Luftpumpe und bewies mit seinen berühmten Halbkugeln 1654 die Existenz des Vakuums — in Magdeburg!',article:`<p>Otto von Guericke wurde 1602 in Magdeburg geboren. 1654 führte er in Regensburg vor Kaiser Ferdinand III. sein berühmtestes Experiment durch: Die Magdeburger Halbkugeln konnten selbst von 16 Pferden nicht auseinandergezogen werden — so gewaltig war der Atmosphärendruck.</p>`},
+  {icon:'🌿',title:'Grünste Großstadt',tag:'🌳 500+ Hektar Grünfläche',body:'Mehr Grünfläche pro Einwohner als jede andere deutsche Großstadt. Rotehornpark, Herrenkrug und Elbauenpark bieten 500+ ha Naherholung.',article:`<p>Magdeburg trägt den Titel der grünsten Großstadt Deutschlands. Mit über 150 ha liegt der Rotehornpark direkt an der Elbe. Der Herrenkrug ist ein weitläufiges Naturschutzgebiet mit alten Eichenwäldern.</p>`},
+  {icon:'🏛️',title:'Magdeburger Recht',tag:'🏛️ UNESCO-Dokumentenerbe',body:'Das Stadtrecht aus dem 13. Jh. wurde Vorbild für 1.000+ Städte — von Krakau bis Riga. UNESCO-Dokumentenerbe.',article:`<p>Das Magdeburger Recht wurde im 13. Jahrhundert entwickelt und garantierte Bürgern weitreichende Freiheiten. Es wurde Vorbild für über 1.000 Städte von Krakau bis Riga. Seit 2013 ist es im UNESCO-Register des Weltdokumentenerbes eingetragen.</p>`},
+  {icon:'🚢',title:'Wasserstraßenkreuz',tag:'🌉 918 m lang · 1998–2003',body:'918 Meter lange Kanalbrücke — Schiffe fahren buchstäblich über die Elbe. Eine der spektakulärsten Wasserbauwerke Europas.',article:`<p>Das Wasserstraßenkreuz Magdeburg verbindet den Elbe-Havel-Kanal und den Mittellandkanal mit einer 918 Meter langen Trogbrücke direkt über die Elbe. Containerschiffe fahren in 34 Metern Höhe über den Fluss. Bauzeit: 1998–2003.</p>`},
+  {icon:'🎭',title:'Händel & Kultur',tag:'🎵 Altstadtfest · Juni',body:'Geburtsstadt Georg Friedrich Händels. Opernhaus Magdeburg + jährliches Altstadtfest mit 200.000+ Besuchern im Juni.',article:`<p>Das Opernhaus Magdeburg, gegründet 1876, bietet ein vielfältiges Programm aus Oper und Ballett. Das jährliche Altstadtfest im Juni ist eines der größten Stadtfeste Mitteldeutschlands mit über 200.000 Besuchern.</p>`},
+];
+
+function renderHighlights(){
+  const grid=document.getElementById('highlights-grid'); if(!grid) return;
+  grid.innerHTML=HIGHLIGHTS.map((h,i)=>`
+    <div class="highlight-card anim-in" style="--delay:${0.1+i*0.05}s" onclick="openArticle(${i})">
+      <div class="hl-icon">${h.icon}</div>
+      <div class="hl-title">${h.title}</div>
+      <div class="hl-body">${h.body}</div>
+      <div class="hl-tag">${h.tag}</div>
+      <button class="hl-read-more" onclick="event.stopPropagation();openArticle(${i})">Artikel lesen →</button>
+    </div>`).join('');
+}
+function openArticle(index){
+  const h=HIGHLIGHTS[index];
+  document.getElementById('am-icon').textContent=h.icon;
+  document.getElementById('am-title').textContent=h.title;
+  document.getElementById('am-tag').textContent=h.tag;
+  document.getElementById('am-body').innerHTML=h.article;
+  document.getElementById('article-modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeArticle(){
+  document.getElementById('article-modal-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+window.openArticle=openArticle;
+
+const FACTS=[
+  {emoji:'🎈',text:'Otto von Guericke erfand 1654 das Vakuum hier in Magdeburg',detail:'Die berühmten Magdeburger Halbkugeln — 8 Pferde konnten sie nicht auseinanderziehen!'},
+  {emoji:'⛪',text:'Der Magdeburger Dom ist der älteste gotische Dom Deutschlands',detail:'Geweiht 1363 · Kaiser Otto I. liegt hier begraben · 100 Meter hohe Türme'},
+  {emoji:'🌿',text:'Magdeburg hat mehr Grünfläche pro Einwohner als jede andere Großstadt',detail:'500+ Hektar Parks direkt am Wasser — Rotehornpark, Herrenkrug, Elbauenpark'},
+  {emoji:'🏛️',text:'Das Magdeburger Stadtrecht ist UNESCO-Dokumentenerbe',detail:'Vorlage für 1.000+ Städte in Europa — von Krakau bis Riga'},
+  {emoji:'🚢',text:'Das Wasserstraßenkreuz: Schiffe fahren buchstäblich über die Elbe',detail:'918 Meter lang · Eine der spektakulärsten Ingenieursleistungen Europas'},
+  {emoji:'⚡',text:'Magdeburg erzeugt 56% seines Stroms aus erneuerbaren Quellen',detail:'Solar, Wind und Fernwärme — Ziel: Klimaneutralität 2035'},
+];
+function initFacts(){
+  const content=document.getElementById('facts-content');
+  const dotsEl=document.getElementById('facts-dots');
+  if(!content||!dotsEl) return;
+  let current=0;
+  content.innerHTML=FACTS.map((f,i)=>`<div class="fact-slide ${i===0?'active':''}" data-fact="${i}"><div class="fact-emoji">${f.emoji}</div><div class="fact-text">${f.text}</div><div class="fact-detail">${f.detail}</div></div>`).join('');
+  dotsEl.innerHTML=FACTS.map((_,i)=>`<div class="fact-dot ${i===0?'active':''}" data-dot="${i}"></div>`).join('');
+  dotsEl.querySelectorAll('.fact-dot').forEach(dot=>{dot.addEventListener('click',()=>goToFact(parseInt(dot.dataset.dot)));});
+  function goToFact(idx){
+    const slides=content.querySelectorAll('.fact-slide');
+    const dots=dotsEl.querySelectorAll('.fact-dot');
+    if(!slides[current]) return;
+    slides[current].classList.remove('active'); slides[current].classList.add('exiting');
+    setTimeout(()=>slides[current]?.classList.remove('exiting'),600);
+    current=idx;
+    if(slides[current]) slides[current].classList.add('active');
+    dots.forEach((d,i)=>d.classList.toggle('active',i===current));
+  }
+  setInterval(()=>goToFact((current+1)%FACTS.length),5000);
+}
+
+function jitter(val,factor,min,max){return Math.max(min,Math.min(max,val+(Math.random()-0.5)*2*factor*(max-min)));}
+function updateLiveData(){
+  const L=state.live;
+  L.aqi=Math.round(jitter(L.aqi,0.03,10,80));
+  L.traffic=Math.round(jitter(L.traffic,0.04,10,100));
+  L.noise=Math.round(jitter(L.noise,0.03,40,75));
+  L.bikes=Math.round(jitter(L.bikes,0.04,80,280));
+  L.scooters=Math.round(jitter(L.scooters,0.04,150,420));
+  L.jams=Math.max(0,Math.min(12,L.jams+(Math.random()>0.8?(Math.random()>0.5?1:-1):0)));
+  L.solar=Math.round(jitter(L.solar,0.06,0,90));
+  L.wind_energy=Math.round(jitter(L.wind_energy,0.05,40,200));
+  L.consumption=Math.round(jitter(L.consumption,0.03,200,420));
+  L.co2=Math.round(jitter(L.co2,0.04,100,300));
+  setEl('kpi-traffic',L.traffic+'%');
+  setEl('env-noise',L.noise);
+  setEl('mob-bikes',L.bikes);
+  setEl('mob-scooters',L.scooters);
+  setEl('mob-jams',L.jams);
+  setEl('en-solar',L.solar);
+  setEl('en-wind',L.wind_energy);
+  setEl('en-consumption',L.consumption);
+  setEl('en-co2',L.co2);
+  setEl('co2-overview-val',L.co2);
+  setEl('co2-needle-label',L.co2+' g/kWh');
+  setEl('co2-current-val',L.co2+' g/kWh');
+  const co2pct=Math.min(100,Math.round(L.co2/600*100));
+  const marker=document.getElementById('co2-track-marker');
+  if(marker) marker.style.left=co2pct+'%';
+  const om=document.getElementById('co2-marker');
+  if(om) om.style.left=co2pct+'%';
+  const tb=document.getElementById('traffic-badge');
+  if(tb){
+    if(L.traffic>75){tb.className='badge badge-red';tb.textContent='Hoch';}
+    else if(L.traffic>50){tb.className='badge badge-amber';tb.textContent='Mittel';}
+    else{tb.className='badge badge-green';tb.textContent='Gering';}
+  }
+  ['aqi','traffic'].forEach(key=>{
+    const chart=state.charts['spark_'+key]; if(!chart) return;
+    const val=key==='aqi'?L.aqi:L.traffic;
+    chart.data.datasets[0].data.shift();
+    chart.data.datasets[0].data.push(val);
+    chart.update('none');
+  });
+  setEl('last-update','Letzte Aktualisierung: '+new Date().toLocaleTimeString('de-DE'));
+}
+
+// ======================================================
+// CHATBOT
+// ======================================================
+const SYSTEM_PROMPT=`You are the Magdeburg Smart City Assistant. Answer in the same language the user writes in (German or English). Keep answers concise (2-5 sentences), friendly and informative.
+
+Key facts: Magdeburg is the state capital of Saxony-Anhalt, population ~244,000, founded 805 AD. Notable: Germany's oldest Gothic cathedral (Dom), Otto von Guericke invented the vacuum here (1654), greenest major German city (500+ ha parks), Magdeburger Recht (UNESCO), 918m Wasserstraßenkreuz canal bridge. MVB tram lines 1-10 serve the city, key stops: Hauptbahnhof, Domplatz, Hasselbachplatz. Elbe flood warning at 590cm. When asked about current data (AQI, Elbe level, temperature, traffic), use the [Live sensor context] provided.`;
+
+let chatHistory=[];
+
+function initChatbot(){
+  const chatWidget=document.createElement('div');
+  chatWidget.id='chatbot-widget';
+  chatWidget.innerHTML=`
+    <button id="chat-fab" aria-label="Chatbot öffnen">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span class="chat-fab-badge" id="chat-unread">1</span>
+    </button>
+    <div id="chat-panel" class="chat-panel">
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <div class="chat-avatar">MD</div>
+          <div><div class="chat-title">Magdeburg Assistent</div><div class="chat-status"><span class="live-dot"></span> Online</div></div>
+        </div>
+        <button id="chat-close" class="chat-close-btn">✕</button>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg bot"><div class="chat-bubble">Hallo! Ich bin Maggi. Frag mich zu Sehenswürdigkeiten, ÖPNV, Umweltdaten, Geschichte und mehr!</div></div>
+      </div>
+      <div class="chat-quick-btns" id="chat-quick-btns">
+        <button class="chat-quick-btn" data-q="Was kann ich in Magdeburg sehen?">🏛️ Sehenswürdigkeiten</button>
+        <button class="chat-quick-btn" data-q="Wie ist die Luftqualität gerade?">🌬️ Luftqualität</button>
+        <button class="chat-quick-btn" data-q="Wie hoch ist der Elbe-Pegel?">💧 Elbe-Pegel</button>
+        <button class="chat-quick-btn" data-q="Welche Straßenbahnen gibt es?">🚋 ÖPNV</button>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Frag mich über Magdeburg…" autocomplete="off">
+        <button id="chat-send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+      </div>
+    </div>`;
+  document.body.appendChild(chatWidget);
+  const fab=document.getElementById('chat-fab');
+  const panel=document.getElementById('chat-panel');
+  const badge=document.getElementById('chat-unread');
+  const input=document.getElementById('chat-input');
+  fab.addEventListener('click',()=>{panel.classList.toggle('open');if(panel.classList.contains('open')){badge.style.display='none';input.focus();}});
+  document.getElementById('chat-close').addEventListener('click',()=>panel.classList.remove('open'));
+  document.getElementById('chat-send').addEventListener('click',sendChatMessage);
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')sendChatMessage();});
+  document.querySelectorAll('.chat-quick-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{input.value=btn.dataset.q;sendChatMessage();document.getElementById('chat-quick-btns').style.display='none';});
+  });
+}
+async function sendChatMessage(){
+  const input=document.getElementById('chat-input');
+  const msg=input.value.trim(); if(!msg) return;
+  input.value='';
+  appendChatMessage(msg,'user');
+  const L=state.live;
+  const elbe=state.elbe?state.elbe+' cm':'unknown';
+  const temp=state.weatherDisplay?.temp?state.weatherDisplay.temp+'°C':'unknown';
+  const contextMsg=`${msg}\n\n[Live sensor context: Elbe: ${elbe}, AQI: ${L.aqi}, PM2.5: ${L.pm25}µg/m³, Temp: ${temp}, Traffic: ${L.traffic}%, Noise: ${L.noise}dB, Bikes: ${L.bikes}, Scooters: ${L.scooters}, Jams: ${L.jams}]`;
+  chatHistory.push({role:'user',content:contextMsg});
+  const typingId=appendChatTyping();
+  try{
+    const response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYSTEM_PROMPT,messages:chatHistory})
+    });
+    const data=await response.json();
+    const reply=data.content?.[0]?.text||'Entschuldigung, keine Antwort.';
+    removeTyping(typingId);
+    appendChatMessage(reply,'bot');
+    chatHistory.push({role:'assistant',content:reply});
+    if(chatHistory.length>20) chatHistory=chatHistory.slice(-20);
+  }catch{
+    removeTyping(typingId);
+    appendChatMessage('⚠️ Verbindungsfehler.','bot');
+    chatHistory.pop();
+  }
+}
+function appendChatMessage(text,role){
+  const msgs=document.getElementById('chat-messages');
+  const div=document.createElement('div'); div.className=`chat-msg ${role}`;
+  div.innerHTML=`<div class="chat-bubble">${text.replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
+}
+function appendChatTyping(){
+  const msgs=document.getElementById('chat-messages');
+  const id='typing-'+Date.now();
+  const div=document.createElement('div'); div.id=id; div.className='chat-msg bot';
+  div.innerHTML=`<div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
+  return id;
+}
+function removeTyping(id){document.getElementById(id)?.remove();}
+
+function setEl(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function flash(el){if(!el)return;el.classList.remove('kpi-updated');void el.offsetWidth;el.classList.add('kpi-updated');}
+
+async function init(){
+  startClock();
+  initNav();
+  initLangToggle();
+  document.getElementById('am-close').addEventListener('click',closeArticle);
+  document.getElementById('article-modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeArticle();});
+  initMap();
+  initSparklines();
+  initFacts();
+  initOverviewTransitBars();
+  renderHighlights();
+  setTimeout(()=>{
+    initMobilityCharts();
+    initMiniTrafficChart();
+  },200);
+  fetchElbe();       // FIX 2: shows fallback cm immediately, then updates with real data
+  fetchWeather();
+  fetchAirQuality();
+  setInterval(updateLiveData,5000);
+  setInterval(fetchElbe,5*60*1000);
+  setInterval(fetchWeather,10*60*1000);
+  setInterval(fetchAirQuality,10*60*1000);
+  setTimeout(updateLiveData,1000);
+  initChatbot();
+}
+
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{init();}
+</script>
+</body>
+</html>
